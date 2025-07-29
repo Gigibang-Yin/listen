@@ -1,0 +1,40 @@
+const CARDS = {
+  person: [
+    { id: "p1", type: "person", content: "我" },
+    { id: "p2", type: "person", content: "你" },
+    { id: "p3", type: "person", content: "他" },
+    { id: "p4", type: "person", content: "老板" },
+    { id: "p5", type: "person", content: "同事" },
+    { id: "p6", type: "person", content: "前台" },
+    { id: "p7", type: "person", content: "保安" },
+    { id: "p8", type: "person", content: "客户" },
+    { id: "p9", type: "person", content: "外卖员" },
+    { id: "p10", type: "person", content: "保洁" },
+  ],
+  place: [
+    { id: "l1", type: "place", content: "会议室" },
+    { id: "l2", type: "place", content: "卫生间" },
+    { id: "l3", type: "place", content: "茶水间" },
+    { id: "l4", type: "place", content: "电梯" },
+    { id: "l5", type: "place", content: "前台" },
+    { id: "l6", type: "place", content: "楼梯间" },
+    { id: "l7", type: "place", content: "吸烟区" },
+    { id: "l8", type: "place", content: "公司楼下" },
+    { id: "l9", type: "place", content: "地铁" },
+    { id: "l10", type: "place", content: "食堂" },
+  ],
+  event: [
+    { id: "e1", type: "event", content: "摸鱼" },
+    { id: "e2", type: "event", content: "开会" },
+    { id: "e3", type: "event", content: "迟到" },
+    { id: "e4", type: "event", content: "早退" },
+    { id: "e5", type: "event", content: "加班" },
+    { id: "e6", type: "event", content: "团建" },
+    { id: "e7", type: "event", content: "吵架" },
+    { id: "e8", type: "event", content: "发工资" },
+    { id: "e9", type: "event", content: "汇报工作" },
+    { id: "e10", type: "event", content: "玩手机" },
+  ],
+};
+
+export { CARDS };
