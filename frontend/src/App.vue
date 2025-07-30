@@ -51,10 +51,12 @@ onMounted(() => {
   });
 
   socket.on('gameOver', ({ room }) => {
-    store.room = room;
+    store.room = room; // Update to the final room state
     const winnerName = room.winner ? room.winner.name : 'Someone';
-    const bottomCardContent = room.bottomCard.content;
-    alert(`游戏结束！\n胜利者是 ${winnerName}！\n底牌是【${bottomCardContent}】。`);
+    const bottomCardPerson = room.bottomCards.person.content;
+    const bottomCardPlace = room.bottomCards.place.content;
+    const bottomCardEvent = room.bottomCards.event.content;
+    alert(`游戏结束！\n胜利者是 ${winnerName}！\n底牌是【${bottomCardPerson}】, 【${bottomCardPlace}】, 【${bottomCardEvent}】。`);
     // Clear session storage after game over
     sessionStorage.removeItem('playerName');
     sessionStorage.removeItem('roomId');

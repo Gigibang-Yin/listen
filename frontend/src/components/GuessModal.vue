@@ -2,33 +2,33 @@
     <div class="modal-overlay" v-if="isOpen">
         <div class="modal-content">
             <h3>猜底牌</h3>
-            <p>请从以下卡牌中选择你认为是底牌的一张。</p>
-            <div class="tabs">
-                <button @click="activeTab = 'person'" :class="{ active: activeTab === 'person' }">人物</button>
-                <button @click="activeTab = 'place'" :class="{ active: activeTab === 'place' }">地点</button>
-                <button @click="activeTab = 'event'" :class="{ active: activeTab === 'event' }">事件</button>
-            </div>
-            <div class="card-list">
-                <div 
-                    v-for="card in cardTypes[activeTab]" 
-                    :key="card.id" 
-                    class="guess-card"
-                    :class="{ selected: selectedCard?.id === card.id }"
-                    @click="selectedCard = card"
-                >
-                    {{ card.content }}
+            <p>请从每个类别中各选择一张牌，组成你认为的底牌。</p>
+            <div class="guess-area">
+                <div class="card-column" v-for="type in cardTypes" :key="type.key">
+                    <h4>{{ type.name }}</h4>
+                    <div class="card-list">
+                        <div 
+                            v-for="card in type.cards" 
+                            :key="card.id" 
+                            class="guess-card"
+                            :class="{ selected: selectedCards[type.key]?.id === card.id }"
+                            @click="selectCard(type.key, card)"
+                        >
+                            {{ card.content }}
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="actions">
                 <button @click="$emit('close')">取消</button>
-                <button @click="submitGuess" :disabled="!selectedCard">确认猜测</button>
+                <button @click="submitGuess" :disabled="!isGuessComplete">确认猜测</button>
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { socket } from '../socket';
 import { store } from '../store';
 import { CARDS } from '../game/cards.js';
@@ -38,22 +38,31 @@ defineProps({
 });
 const emit = defineEmits(['close']);
 
-const activeTab = ref('person');
-const cardTypes = ref(CARDS);
-const selectedCard = ref(null);
+const cardTypes = ref([
+    { key: 'person', name: '人物', cards: CARDS.person },
+    { key: 'place', name: '地点', cards: CARDS.place },
+    { key: 'event', name: '事件', cards: CARDS.event },
+]);
+const selectedCards = ref({ person: null, place: null, event: null });
+
+const isGuessComplete = computed(() => {
+    return selectedCards.value.person && selectedCards.value.place && selectedCards.value.event;
+});
+
+const selectCard = (type, card) => {
+    selectedCards.value[type] = card;
+};
 
 const submitGuess = () => {
-    if (!selectedCard.value) return;
-    socket.emit('guessBottomCard', { roomId: store.room.id, guessedCard: selectedCard.value }, (response) => {
+    if (!isGuessComplete.value) return;
+    socket.emit('guessBottomCard', { roomId: store.room.id, guessedCards: selectedCards.value }, (response) => {
         if (response.success === false) {
             if (response.message) {
                  alert(`错误: ${response.message}`);
             } else {
-                 alert(`猜错了！你猜的【${response.guessedCard.content}】不是底牌。`);
+                 alert(`猜错了！`);
             }
         }
-        // On success, the gameOver event will be handled globally.
-        // On failure, the modal just closes.
         emit('close');
     });
 };
@@ -83,44 +92,39 @@ const submitGuess = () => {
     display: flex;
     flex-direction: column;
 }
-.tabs {
+.guess-area {
     display: flex;
-    background-color: #222;
-    border-radius: 8px;
-    margin: 10px 0;
+    gap: 15px;
+    flex-grow: 1;
+    min-height: 0;
 }
-.tabs button {
+.card-column {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: #2a2a2a;
+    border-radius: 8px;
     padding: 10px;
-    border: none;
-    background-color: transparent;
-    cursor: pointer;
-    font-size: 16px;
-    color: #aaa;
 }
-.tabs button.active {
-    font-weight: bold;
-    color: #fff;
-    background-color: #444;
+.card-column h4 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 10px;
 }
 .card-list {
     flex-grow: 1;
-    padding: 15px;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 15px;
     overflow-y: auto;
-    background-color: #2a2a2a;
-    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 .guess-card {
     background-color: #444;
     border-radius: 8px;
-    padding: 20px 10px;
+    padding: 15px 10px;
     text-align: center;
     border: 2px solid #555;
     cursor: pointer;
-    transition: all 0.2s ease;
 }
 .guess-card.selected {
     border-color: #4CAF50;

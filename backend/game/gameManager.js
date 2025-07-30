@@ -16,7 +16,7 @@ const createRoom = (roomId) => {
     id: roomId,
     players: [],
     deck: [],
-    bottomCard: null,
+    bottomCards: { person: null, place: null, event: null }, // Changed from bottomCard
     publicCards: [],
     gameState: "waiting", // waiting, playing, responding, finished
     currentTurn: null,
@@ -112,11 +112,30 @@ const startGame = (roomId) => {
   }
 
   // 1. Prepare cards
-  const allFunctionCards = [...CARDS.person, ...CARDS.place, ...CARDS.event];
+  const personCards = [...CARDS.person];
+  const placeCards = [...CARDS.place];
+  const eventCards = [...CARDS.event];
 
-  // 2. Select a bottom card
-  const bottomCardIndex = Math.floor(Math.random() * allFunctionCards.length);
-  room.bottomCard = allFunctionCards.splice(bottomCardIndex, 1)[0];
+  // 2. Select bottom cards
+  const bottomPerson = personCards.splice(
+    Math.floor(Math.random() * personCards.length),
+    1
+  )[0];
+  const bottomPlace = placeCards.splice(
+    Math.floor(Math.random() * placeCards.length),
+    1
+  )[0];
+  const bottomEvent = eventCards.splice(
+    Math.floor(Math.random() * eventCards.length),
+    1
+  )[0];
+  room.bottomCards = {
+    person: bottomPerson,
+    place: bottomPlace,
+    event: bottomEvent,
+  };
+
+  const allFunctionCards = [...personCards, ...placeCards, ...eventCards];
 
   // 3. Prepare the main deck
   const waterCards = Array.from({ length: room.players.length }, (_, i) => ({
@@ -269,7 +288,7 @@ const moveToNextTurn = (roomId) => {
   return room;
 };
 
-const guessBottomCard = (roomId, playerId, guessedCard) => {
+const guessBottomCard = (roomId, playerId, guessedCards) => {
   const room = getRoom(roomId);
   if (!room) throw new Error("Room not found.");
   if (room.currentTurn !== playerId)
@@ -279,19 +298,29 @@ const guessBottomCard = (roomId, playerId, guessedCard) => {
   const player = room.players.find((p) => p.id === playerId);
   if (!player || !player.isAlive) throw new Error("你已经出局了，不能再猜了。");
 
-  if (room.bottomCard.id === guessedCard.id) {
+  const { person, place, event } = room.bottomCards;
+  const {
+    person: guessedPerson,
+    place: guessedPlace,
+    event: guessedEvent,
+  } = guessedCards;
+
+  if (
+    person.id === guessedPerson.id &&
+    place.id === guessedPlace.id &&
+    event.id === guessedEvent.id
+  ) {
     // Correct guess!
     room.gameState = "finished";
     room.winner = player;
-    room.log.push(`${player.name} 猜对了底牌！游戏结束！`);
+    room.log.push(`${player.name} 猜对了全部三张底牌！游戏结束！`);
     return { correct: true, room };
   } else {
     // Incorrect guess
     player.isAlive = false;
     room.log.push(`${player.name} 猜错了，出局了！`);
-    // Move to the next turn immediately after a wrong guess.
     const nextTurnRoom = moveToNextTurn(roomId);
-    return { correct: false, room: nextTurnRoom, guessedCard };
+    return { correct: false, room: nextTurnRoom, guessedCards };
   }
 };
 

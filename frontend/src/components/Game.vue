@@ -12,7 +12,9 @@
       <div class="room-info">房间：{{ store.room.id }}</div>
       <div class="back-card-container">
         <div class="back-card"></div>
-        <span>底牌</span>
+        <div class="back-card"></div>
+        <div class="back-card"></div>
+        <span>底牌 (3)</span>
       </div>
     </header>
 
@@ -263,16 +265,20 @@ const confirmSentence = () => {
   height: 50px;
 }
 .back-card-container {
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.back-card-container span {
+    margin-top: 5px;
 }
 .back-card {
-  width: 60px;
-  height: 90px;
-  background-image: url("/assets/back-card.png");
-  background-size: contain;
-  background-repeat: no-repeat;
-  margin-bottom: 5px;
+    display: inline-block;
+    margin: 0 -15px; /* Overlap cards slightly */
 }
+.back-card:nth-child(1) { transform: rotate(-5deg); }
+.back-card:nth-child(2) { z-index: 1; transform: scale(1.05); }
+.back-card:nth-child(3) { transform: rotate(5deg); }
 .game-board {
   display: flex;
   flex-grow: 1;

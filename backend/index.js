@@ -121,9 +121,9 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("guessBottomCard", ({ roomId, guessedCard }, callback) => {
+  socket.on("guessBottomCard", ({ roomId, guessedCards }, callback) => {
     try {
-      const result = guessBottomCard(roomId, socket.id, guessedCard);
+      const result = guessBottomCard(roomId, socket.id, guessedCards);
       if (result.correct) {
         // Announce winner to everyone
         io.to(roomId).emit("gameOver", { room: result.room });
@@ -131,7 +131,7 @@ io.on("connection", (socket) => {
         // Announce the player is out and move to next turn
         io.to(roomId).emit("roomUpdate", result.room);
         // Tell the player what they guessed wrong privately
-        callback({ success: false, guessedCard: result.guessedCard });
+        callback({ success: false, guessedCards: result.guessedCards });
       }
     } catch (error) {
       console.error("Guess bottom card error:", error.message);
