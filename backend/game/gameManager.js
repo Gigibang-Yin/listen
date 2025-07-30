@@ -18,8 +18,11 @@ const createRoom = (roomId) => {
     deck: [],
     bottomCard: null,
     publicCards: [],
-    gameState: "waiting", // waiting, playing, finished
+    gameState: "waiting", // waiting, playing, responding, finished
     currentTurn: null,
+    currentSentence: null,
+    responses: [],
+    playersWhoResponded: [],
     log: [],
   };
   return rooms[roomId];
@@ -120,11 +123,149 @@ const startGame = (roomId) => {
   return room;
 };
 
+const makeSentence = (roomId, playerId, sentence) => {
+  const room = getRoom(roomId);
+  if (!room) throw new Error("Room not found.");
+  if (room.currentTurn !== playerId)
+    throw new Error("Not your turn to make a sentence.");
+  if (room.gameState !== "playing")
+    throw new Error("Cannot make a sentence right now.");
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player) throw new Error("Player not found.");
+
+  room.currentSentence = sentence;
+  room.gameState = "responding"; // State changes to waiting for card responses
+  room.responses = []; // Clear previous responses
+  room.playersWhoResponded = []; // Clear previous responders
+
+  room.log.push(
+    `${player.name} 造句: ${sentence.person.content}, ${sentence.place.content}, ${sentence.event.content}`
+  );
+
+  return room;
+};
+
+const respondToSentence = (roomId, playerId, card) => {
+  const room = getRoom(roomId);
+  if (!room) throw new Error("Room not found.");
+  if (room.gameState !== "responding")
+    throw new Error("Not the time to respond.");
+  if (room.playersWhoResponded.includes(playerId))
+    throw new Error("You have already responded.");
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player) throw new Error("Player not found in this room.");
+
+  if (card) {
+    // Remove card from player's hand
+    const cardIndex = player.hand.findIndex((c) => c.id === card.id);
+    if (cardIndex === -1) throw new Error("Card not in your hand.");
+    player.hand.splice(cardIndex, 1);
+
+    room.responses.push({ player, card });
+  }
+
+  room.playersWhoResponded.push(playerId);
+  room.log.push(`${player.name} 出了一张牌。`);
+
+  // Check if all other players have responded
+  const respondingPlayers = room.players.filter(
+    (p) => p.id !== room.currentTurn
+  );
+  if (room.playersWhoResponded.length === respondingPlayers.length) {
+    room.gameState = "viewing"; // Next state: sentence maker views a card
+    room.log.push("所有玩家已响应，请造句者选择一张牌查看。");
+  }
+
+  return room;
+};
+
+const viewCard = (roomId, viewerId, targetPlayerId) => {
+  const room = getRoom(roomId);
+  if (!room) throw new Error("Room not found.");
+  if (room.currentTurn !== viewerId)
+    throw new Error("Not your turn to view a card.");
+  if (room.gameState !== "viewing")
+    throw new Error("Not the time to view cards.");
+
+  const response = room.responses.find((r) => r.player.id === targetPlayerId);
+  if (!response)
+    throw new Error("This player did not respond or response not found.");
+
+  const player = room.players.find((p) => p.id === viewerId);
+  room.log.push(`${player.name} 查看了 ${response.player.name} 的牌。`);
+
+  // Return the card to be viewed privately
+  return response.card;
+};
+
+const moveToNextTurn = (roomId) => {
+  const room = getRoom(roomId);
+  if (!room) throw new Error("Room not found.");
+
+  const currentPlayerIndex = room.players.findIndex(
+    (p) => p.id === room.currentTurn
+  );
+  // Find the next alive player
+  let nextPlayerIndex = (currentPlayerIndex + 1) % room.players.length;
+  while (!room.players[nextPlayerIndex].isAlive) {
+    nextPlayerIndex = (nextPlayerIndex + 1) % room.players.length;
+    // Failsafe to prevent infinite loops if all players are out
+    if (nextPlayerIndex === currentPlayerIndex) {
+      room.gameState = "finished";
+      room.log.push("所有玩家都已出局，游戏结束。");
+      return room;
+    }
+  }
+
+  // Reset for the new turn
+  room.gameState = "playing";
+  room.currentTurn = room.players[nextPlayerIndex].id;
+  room.currentSentence = null;
+  room.responses = [];
+  room.playersWhoResponded = [];
+  room.log.push(`轮到 ${room.players[nextPlayerIndex].name}。`);
+
+  return room;
+};
+
+const guessBottomCard = (roomId, playerId, guessedCard) => {
+  const room = getRoom(roomId);
+  if (!room) throw new Error("Room not found.");
+  if (room.currentTurn !== playerId)
+    throw new Error("现在没轮到你，不能猜底牌。");
+  if (room.gameState !== "playing") throw new Error("当前阶段不能猜底牌。");
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player || !player.isAlive) throw new Error("你已经出局了，不能再猜了。");
+
+  if (room.bottomCard.id === guessedCard.id) {
+    // Correct guess!
+    room.gameState = "finished";
+    room.winner = player;
+    room.log.push(`${player.name} 猜对了底牌！游戏结束！`);
+    return { correct: true, room };
+  } else {
+    // Incorrect guess
+    player.isAlive = false;
+    room.log.push(`${player.name} 猜错了，出局了！`);
+    // Move to the next turn immediately after a wrong guess.
+    const nextTurnRoom = moveToNextTurn(roomId);
+    return { correct: false, room: nextTurnRoom, guessedCard };
+  }
+};
+
 module.exports = {
   createRoom,
   joinRoom,
   leaveRoom,
   getRoom,
   startGame,
+  makeSentence,
+  respondToSentence,
+  viewCard,
+  moveToNextTurn,
+  guessBottomCard,
   rooms,
 };

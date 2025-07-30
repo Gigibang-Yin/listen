@@ -15,12 +15,21 @@
 
     <main class="game-board">
       <div class="game-area">
+        <div class="sentence-builder-area" v-if="isMyTurn">
+          <h3>轮到你造句了！</h3>
+          <div class="sentence-slots">
+            <div class="slot">{{ sentenceBuilder.person?.content || '人物' }}</div>
+            <div class="slot">{{ sentenceBuilder.place?.content || '地点' }}</div>
+            <div class="slot">{{ sentenceBuilder.event?.content || '事件' }}</div>
+          </div>
+          <button class="confirm-sentence-btn" @click="confirmSentence">确认造句</button>
+        </div>
         <div class="players-area">
           <div
             v-for="player in store.room.players"
             :key="player.id"
             class="player-slot"
-            :class="{ 'current-turn': player.id === store.room.currentTurn }"
+            :class="{ 'current-turn': player.id === store.room.currentTurn, 'is-out': !player.isAlive }"
           >
             <div class="player-card">
               <img
@@ -50,7 +59,12 @@
           <span class="notebook-toggle-btn-text">记事本 | 牌库</span>
         </button>
         <div class="notebook-content">
-          <Notebook :notebook-data="myPlayer.notebook" @update:notebookData="updateNotebook" @make-sentence="handleMakeSentence"/>
+          <Notebook
+            :notebook-data="myPlayer.notebook"
+            :sentence-builder="sentenceBuilder"
+            @update:notebookData="updateNotebook"
+            @make-sentence="handleMakeSentence"
+          />
         </div>
       </aside>
     </main>
@@ -70,6 +84,12 @@
         </div>
       </div>
       <div class="actions">
+        <button 
+            @click="isGuessModalOpen = true" 
+            v-if="isMyTurn && store.room.gameState === 'playing'"
+        >
+            猜底牌
+        </button>
         <button
           @click="startGame"
           v-if="isHost && store.room.gameState === 'waiting'"
@@ -78,6 +98,7 @@
         </button>
       </div>
     </footer>
+    <GuessModal :is-open="isGuessModalOpen" @close="isGuessModalOpen = false" />
   </div>
 </template>
 
@@ -86,8 +107,11 @@ import { ref, computed } from 'vue';
 import { socket } from '../socket';
 import { store } from '../store';
 import Notebook from './Notebook.vue';
+import GuessModal from './GuessModal.vue';
 
 const isNotebookOpen = ref(true);
+const sentenceBuilder = ref({ person: null, place: null, event: null });
+const isGuessModalOpen = ref(false);
 
 const isHost = computed(
   () =>
@@ -95,6 +119,7 @@ const isHost = computed(
     store.room.players.length > 0 &&
     store.room.players[0].id === socket.id
 );
+const isMyTurn = computed(() => store.room?.currentTurn === socket.id);
 const myPlayer = computed(
   () =>
     store.room?.players.find((p) => p.id === socket.id) || {
@@ -122,10 +147,29 @@ const updateNotebook = (newNotebookData) => {
 };
 
 const handleMakeSentence = (card) => {
-    // Handle the logic for making a sentence with the selected card
-    console.log('Making a sentence with:', card);
-    alert(`用 ${card.content} 造句！`);
-}
+    if (!isMyTurn.value) {
+        alert("还没轮到你呢！");
+        return;
+    }
+    sentenceBuilder.value[card.type] = card;
+};
+
+const confirmSentence = () => {
+    const { person, place, event } = sentenceBuilder.value;
+    if (!person || !place || !event) {
+        alert("请选择 人物、地点、事件 来完成造句！");
+        return;
+    }
+    
+    socket.emit('makeSentence', { roomId: store.room.id, sentence: sentenceBuilder.value }, (response) => {
+        if (response.success) {
+            // Sentence sent successfully, no further action needed here as server will broadcast update
+            sentenceBuilder.value = { person: null, place: null, event: null };
+        } else {
+            alert(`Error: ${response.message}`);
+        }
+    });
+};
 </script>
 
 <style scoped>
@@ -194,12 +238,18 @@ const handleMakeSentence = (card) => {
   background-color: rgba(255, 255, 0, 0.3);
   box-shadow: 0 0 10px #ffeb3b;
 }
+.player-slot.is-out .player-card {
+    background-color: #555;
+    opacity: 0.6;
+    filter: grayscale(80%);
+}
 .player-card {
   background-color: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
   padding: 10px;
   text-align: center;
   width: 120px;
+  transition: all 0.3s ease;
 }
 .player-card img {
   width: 50px;
@@ -315,5 +365,33 @@ const handleMakeSentence = (card) => {
 }
 .actions {
   margin-left: 20px;
+}
+.sentence-builder-area {
+    background-color: rgba(0, 0, 0, 0.5);
+    border: 1px solid #ffeb3b;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+.sentence-slots {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin: 10px 0;
+}
+.slot {
+    background-color: #555;
+    padding: 10px 20px;
+    border-radius: 4px;
+    min-width: 80px;
+}
+.confirm-sentence-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
 }
 </style>

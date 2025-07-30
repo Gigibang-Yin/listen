@@ -4,6 +4,8 @@ import CreateRoom from "./components/CreateRoom.vue";
 import Game from "./components/Game.vue";
 import { socket } from "./socket";
 import { store } from "./store";
+import ResponseModal from './components/ResponseModal.vue';
+import ViewCardModal from './components/ViewCardModal.vue';
 
 onMounted(() => {
   const savedPlayerName = sessionStorage.getItem("playerName");
@@ -47,6 +49,21 @@ onMounted(() => {
     // You can add a notification here to let players know the game has started
   });
 
+  socket.on('newSentence', (sentence) => {
+      // Don't show modal to the sentence maker
+      if (socket.id === store.room.currentTurn) return;
+
+      store.sentenceToRespond = sentence;
+      store.isResponding = true;
+  });
+
+  socket.on('gameOver', ({ room }) => {
+    store.room = room; // Update to the final room state
+    const winnerName = room.winner ? room.winner.name : 'Someone';
+    const bottomCardContent = room.bottomCard.content;
+    alert(`游戏结束！\n胜利者是 ${winnerName}！\n底牌是【${bottomCardContent}】。`);
+  });
+
   socket.on("error", (message) => {
     store.error = message;
   });
@@ -61,6 +78,8 @@ onUnmounted(() => {
   <div id="app">
     <template v-if="store.room">
       <Game />
+      <ResponseModal />
+      <ViewCardModal />
     </template>
     <template v-else>
       <CreateRoom />

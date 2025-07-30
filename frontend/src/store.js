@@ -7,4 +7,6 @@ export const store = reactive({
     name: "",
   },
   error: null,
+  isResponding: false,
+  sentenceToRespond: null,
 });

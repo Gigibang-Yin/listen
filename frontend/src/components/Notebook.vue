@@ -10,6 +10,7 @@
                 v-for="card in cardTypes[activeTab]" 
                 :key="card.id" 
                 class="notebook-card"
+                :class="{ 'is-selected-for-sentence': isSelectedForSentence(card) }"
             >
                 <div class="card-inner">
                     <div class="card-type-label">{{ getCardTypeName(card.type) }}</div>
@@ -26,11 +27,15 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, watch, computed } from 'vue';
 import { CARDS } from '../game/cards.js';
 
 const props = defineProps({
     notebookData: {
+        type: Object,
+        required: true
+    },
+    sentenceBuilder: {
         type: Object,
         required: true
     }
@@ -71,6 +76,10 @@ const makeSentence = (card) => {
     emit('make-sentence', card);
     // Logic for making a sentence will be handled in the parent component
 }
+
+const isSelectedForSentence = (card) => {
+    return props.sentenceBuilder[card.type]?.id === card.id;
+};
 </script>
 
 <style scoped>
@@ -120,6 +129,10 @@ const makeSentence = (card) => {
     position: relative;
     border: 1px solid #555;
     overflow: hidden;
+}
+.notebook-card.is-selected-for-sentence {
+    outline: 3px solid #4CAF50;
+    box-shadow: 0 0 15px #4CAF50;
 }
 .card-inner {
     padding: 20px 10px;
