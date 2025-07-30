@@ -116,6 +116,8 @@ import Notebook from './Notebook.vue';
 import GuessModal from './GuessModal.vue';
 import GameLog from './GameLog.vue';
 import TurnTimer from './TurnTimer.vue';
+import { useToast } from '../composables/useToast';
+const { showToast } = useToast();
 
 const showTurnIndicator = ref(false);
 
@@ -178,7 +180,7 @@ const updateNotebook = (newNotebookData) => {
 
 const handleMakeSentence = (card) => {
     if (!isMyTurn.value) {
-        alert("还没轮到你呢！");
+        showToast("还没轮到你呢！", 'error');
         return;
     }
     sentenceBuilder.value[card.type] = card;
@@ -187,16 +189,15 @@ const handleMakeSentence = (card) => {
 const confirmSentence = () => {
     const { person, place, event } = sentenceBuilder.value;
     if (!person || !place || !event) {
-        alert("请选择 人物、地点、事件 来完成造句！");
+        showToast("请选择 人物、地点、事件 来完成造句！", 'error');
         return;
     }
     
     socket.emit('makeSentence', { roomId: store.room.id, sentence: sentenceBuilder.value }, (response) => {
         if (response.success) {
-            // Sentence sent successfully, no further action needed here as server will broadcast update
             sentenceBuilder.value = { person: null, place: null, event: null };
         } else {
-            alert(`Error: ${response.message}`);
+            showToast(`错误: ${response.message}`, 'error');
         }
     });
 };

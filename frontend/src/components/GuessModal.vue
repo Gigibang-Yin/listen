@@ -32,6 +32,7 @@ import { ref, computed } from 'vue';
 import { socket } from '../socket';
 import { store } from '../store';
 import { CARDS } from '../game/cards.js';
+import { useToast } from '../composables/useToast';
 
 defineProps({
     isOpen: Boolean,
@@ -53,16 +54,20 @@ const selectCard = (type, card) => {
     selectedCards.value[type] = card;
 };
 
+const { showToast } = useToast();
+
 const submitGuess = () => {
     if (!isGuessComplete.value) return;
     socket.emit('guessBottomCard', { roomId: store.room.id, guessedCards: selectedCards.value }, (response) => {
         if (response.success === false) {
             if (response.message) {
-                 alert(`错误: ${response.message}`);
+                 showToast(`错误: ${response.message}`, 'error');
             } else {
-                 alert(`猜错了！`);
+                 showToast(`猜错了！`, 'error');
             }
         }
+        // On success, the gameOver event will be handled globally.
+        // On failure, the modal just closes and shows a toast.
         emit('close');
     });
 };

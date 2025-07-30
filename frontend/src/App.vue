@@ -6,6 +6,10 @@ import CreateRoom from './components/CreateRoom.vue';
 import Game from './components/Game.vue';
 import ResponseModal from './components/ResponseModal.vue';
 import ViewCardModal from './components/ViewCardModal.vue';
+import { useToast } from './composables/useToast';
+import Toast from './components/Toast.vue';
+
+const { showToast } = useToast();
 
 onMounted(() => {
   const savedPlayerName = sessionStorage.getItem('playerName');
@@ -56,7 +60,9 @@ onMounted(() => {
     const bottomCardPerson = room.bottomCards.person.content;
     const bottomCardPlace = room.bottomCards.place.content;
     const bottomCardEvent = room.bottomCards.event.content;
-    alert(`游戏结束！\n胜利者是 ${winnerName}！\n底牌是【${bottomCardPerson}】, 【${bottomCardPlace}】, 【${bottomCardEvent}】。`);
+    showToast(`游戏结束！胜利者是 ${winnerName}！`, 'success', 10000);
+    // You might want to show the bottom cards in a more persistent way
+    // For now, it's in the log.
     // Clear session storage after game over
     sessionStorage.removeItem('playerName');
     sessionStorage.removeItem('roomId');
@@ -70,6 +76,7 @@ onMounted(() => {
 
 <template>
   <div id="app">
+    <Toast />
     <template v-if="store.room">
       <Game />
       <ResponseModal />
