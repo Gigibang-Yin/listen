@@ -1,7 +1,6 @@
 <template>
   <div
     class="game-container"
-    :style="{ backgroundImage: `url('/assets/game-bg.png')` }"
   >
     <header class="game-header">
       <div class="logo">
@@ -48,7 +47,7 @@
       </div>
       <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
         <button class="notebook-toggle-btn" @click="isNotebookOpen = !isNotebookOpen">
-          <span>记事本</span>
+          <span class="notebook-toggle-btn-text">记事本 | 牌库</span>
         </button>
         <div class="notebook-content">
           <Notebook :notebook-data="myPlayer.notebook" @update:notebookData="updateNotebook" @make-sentence="handleMakeSentence"/>
@@ -59,7 +58,7 @@
     <footer class="bottom-bar">
       <div class="my-info">
         <div class="my-avatar"></div>
-        <span>我</span>
+        <span>{{ myPlayer.name }}</span>
       </div>
       <div class="my-cards-hand">
         <div
@@ -99,6 +98,7 @@ const isHost = computed(
 const myPlayer = computed(
   () =>
     store.room?.players.find((p) => p.id === socket.id) || {
+      name: store.player.name, // Use stored name as a fallback
       hand: [],
       notebook: {},
     }
@@ -138,6 +138,8 @@ const handleMakeSentence = (card) => {
   flex-direction: column;
   color: #fff;
   overflow: hidden;
+  background: url("/assets/game-bg.png") no-repeat center center;
+  background-size: contain;
 }
 .game-header {
   display: flex;
@@ -247,7 +249,7 @@ const handleMakeSentence = (card) => {
   top: 50%;
   transform: translateY(-50%);
   width: 30px;
-  height: 100px;
+  height: auto;
   background-color: #333;
   border: none;
   border-radius: 8px 0 0 8px;
@@ -257,6 +259,14 @@ const handleMakeSentence = (card) => {
   text-orientation: mixed;
   padding: 10px 5px;
   font-size: 16px;
+}
+.notebook-toggle-btn-text {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  writing-mode: vertical-lr;
+  text-orientation: mixed;
 }
 .notebook-content {
   width: 100%;
