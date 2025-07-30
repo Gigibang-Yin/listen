@@ -109,7 +109,8 @@
         <div class="game-over-box">
             <h2>游戏结束</h2>
             <div class="winner-announcement">
-                胜利者是: <strong>{{ store.room.winner?.name }}</strong>
+                <strong v-if="store.room.winner">{{ store.room.winner?.name }} 获胜!</strong>
+                <strong v-else>所有玩家都已出局，无人获胜！</strong>
             </div>
             <div class="bottom-cards-reveal">
                 <h4>底牌是:</h4>
@@ -220,6 +221,7 @@ const confirmSentence = () => {
 };
 
 const returnToLobby = () => {
+    console.log("Returning to lobby...");
     store.room = null;
     store.isGameOver = false;
     // No need to disconnect, socket is still alive for the next game

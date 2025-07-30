@@ -55,13 +55,12 @@ onMounted(() => {
   });
 
   socket.on('gameOver', ({ room }) => {
+    console.log("Received gameOver event! Winner:", room.winner.name);
     store.room = room;
-    store.isGameOver = true; // Set game over state
-    const winnerName = room.winner ? room.winner.name : 'Someone';
-    showToast(`游戏结束！胜利者是 ${winnerName}！`, 'success', 10000);
-    // The log will show the bottom cards
-    sessionStorage.removeItem('playerName');
-    sessionStorage.removeItem('roomId');
+    store.isGameOver = true; // Force the game over state
+    
+    sessionStorage.removeItem("playerName");
+    sessionStorage.removeItem("roomId");
   });
 
   socket.on('error', (message) => {

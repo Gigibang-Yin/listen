@@ -346,6 +346,7 @@ const moveToNextTurn = (roomId) => {
     // Failsafe to prevent infinite loops if all players are out
     if (nextPlayerIndex === currentPlayerIndex) {
       room.gameState = "finished";
+      room.winner = null; // Explicitly set no winner
       room.log.push("所有玩家都已出局，游戏结束。");
       return room;
     }

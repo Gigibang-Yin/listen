@@ -116,8 +116,16 @@ io.on("connection", (socket) => {
   socket.on("finishedViewing", ({ roomId }) => {
     try {
       const room = moveToNextTurn(roomId);
-      io.to(roomId).emit("roomUpdate", room);
-      io.to(roomId).emit("nextTurn", { currentTurn: room.currentTurn });
+      // THE FIX: Check if the game ended after moving to the next turn
+      if (room.gameState === "finished") {
+        io.to(roomId).emit("gameOver", { room });
+        setTimeout(() => {
+          removeRoom(roomId);
+        }, 10000);
+      } else {
+        io.to(roomId).emit("roomUpdate", room);
+        io.to(roomId).emit("nextTurn", { currentTurn: room.currentTurn });
+      }
     } catch (error) {
       console.error("Move to next turn error:", error.message);
     }
@@ -128,10 +136,27 @@ io.on("connection", (socket) => {
       const result = guessBottomCard(roomId, socket.id, guessedCards);
       if (result.correct) {
         // Announce winner to everyone
+        console.log(
+          `Game over in room ${roomId}. Winner: ${result.room.winner.name}. Emitting gameOver.`
+        );
         io.to(roomId).emit("gameOver", { room: result.room });
+
+        // Schedule room cleanup right after announcing the winner
+        setTimeout(() => {
+          removeRoom(result.room.id);
+        }, 10000); // 10 seconds delay
       } else {
         // Announce the player is out and move to next turn
         io.to(roomId).emit("roomUpdate", result.room);
+
+        // THE FIX: Also check if the game ended right after this player got out
+        if (result.room.gameState === "finished") {
+          io.to(roomId).emit("gameOver", { room: result.room });
+          setTimeout(() => {
+            removeRoom(result.room.id);
+          }, 10000);
+        }
+
         // Tell the player what they guessed wrong privately
         callback({ success: false, guessedCards: result.guessedCards });
       }
@@ -139,15 +164,6 @@ io.on("connection", (socket) => {
       console.error("Guess bottom card error:", error.message);
       callback({ success: false, message: error.message });
     }
-  });
-
-  socket.on("gameOver", ({ room }) => {
-    io.to(room.id).emit("gameOver", { room }); // Announce winner to everyone
-
-    // Schedule room cleanup after a delay to allow clients to receive the final message
-    setTimeout(() => {
-      removeRoom(room.id);
-    }, 10000); // 10 seconds delay
   });
 
   socket.on("disconnect", () => {
