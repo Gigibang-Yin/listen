@@ -28,11 +28,42 @@ const createRoom = (roomId) => {
   return rooms[roomId];
 };
 
+const disconnectPlayer = (playerId) => {
+  const room = Object.values(rooms).find((r) =>
+    r.players.some((p) => p.id === playerId)
+  );
+  if (!room) return null;
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (player) {
+    player.disconnected = true;
+    room.log.push(`${player.name} 断线了。`);
+
+    // If it was the disconnected player's turn, move to the next player
+    if (room.currentTurn === playerId) {
+      moveToNextTurn(room.id);
+    }
+  }
+  return room;
+};
+
 const joinRoom = (roomId, playerId, playerName) => {
   if (!rooms[roomId]) {
     createRoom(roomId);
   }
   const room = rooms[roomId];
+
+  // Handle reconnection
+  const reconnectingPlayer = room.players.find(
+    (p) => p.name === playerName && p.disconnected
+  );
+  if (reconnectingPlayer) {
+    reconnectingPlayer.disconnected = false;
+    reconnectingPlayer.id = playerId; // Update with new socket ID
+    room.log.push(`${playerName} 重新连接了！`);
+    return room;
+  }
+
   if (room.players.find((p) => p.id === playerId)) {
     return room; // Player already in room
   }
@@ -49,14 +80,22 @@ const joinRoom = (roomId, playerId, playerName) => {
     hand: [],
     isAlive: true,
     notebook: { person: [], place: [], event: [] },
+    disconnected: false,
   };
   room.players.push(player);
+  room.log.push(`${playerName} 加入了房间。`);
   return room;
 };
 
 const leaveRoom = (roomId, playerId) => {
   const room = rooms[roomId];
   if (!room) return;
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (player) {
+    room.log.push(`${player.name} 离开了房间。`);
+  }
+
   room.players = room.players.filter((p) => p.id !== playerId);
   if (room.players.length === 0) {
     delete rooms[roomId];
@@ -268,4 +307,5 @@ module.exports = {
   moveToNextTurn,
   guessBottomCard,
   rooms,
+  disconnectPlayer,
 };

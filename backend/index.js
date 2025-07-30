@@ -12,6 +12,7 @@ const {
   viewCard,
   moveToNextTurn,
   guessBottomCard,
+  disconnectPlayer,
 } = require("./game/gameManager");
 
 const app = express();
@@ -140,16 +141,9 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("user disconnected:", socket.id);
-    const gameManager = require("./game/gameManager");
-    // Find which room the player was in and notify others
-    const roomId = Object.keys(gameManager.rooms).find((roomId) =>
-      gameManager.getRoom(roomId).players.some((p) => p.id === socket.id)
-    );
-    if (roomId) {
-      const room = gameManager.leaveRoom(roomId, socket.id);
-      if (room) {
-        io.to(roomId).emit("roomUpdate", room);
-      }
+    const room = disconnectPlayer(socket.id);
+    if (room) {
+      io.to(room.id).emit("roomUpdate", room);
     }
   });
 });

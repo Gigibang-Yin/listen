@@ -1,7 +1,10 @@
 <template>
-  <div
-    class="game-container"
-  >
+  <div class="game-container">
+    <div class="turn-indicator-overlay" v-if="showTurnIndicator">
+        <div class="turn-indicator-box">
+            轮到 <span class="turn-player-name">{{ currentTurnPlayerName }}</span> 行动了！
+        </div>
+    </div>
     <header class="game-header">
       <div class="logo">
         <img src="/assets/listen-logo.png" alt="哎哎我听说 Logo" />
@@ -25,33 +28,31 @@
           <button class="confirm-sentence-btn" @click="confirmSentence">确认造句</button>
         </div>
         <div class="players-area">
-          <div
-            v-for="player in store.room.players"
-            :key="player.id"
-            class="player-slot"
-            :class="{ 'current-turn': player.id === store.room.currentTurn, 'is-out': !player.isAlive }"
-          >
-            <div class="player-card">
-              <img
-                :src="player.avatar || '/assets/default-avator.png'"
-                alt="avatar"
-              />
-              <span class="player-name">{{ player.name }}</span>
-              <span class="card-count">{{ player.hand.length }}张牌</span>
-            </div>
-          </div>
-        </div>
-        <div class="public-cards-area">
-          <div class="area-title">公开牌</div>
-          <div class="card-grid">
+          <transition-group name="player-fade">
             <div
-              v-for="card in store.room.publicCards"
-              :key="card.id"
-              class="card public-card"
+              v-for="player in store.room.players"
+              :key="player.id"
+              class="player-slot"
+              :class="{ 
+                  'current-turn': player.id === store.room.currentTurn, 
+                  'is-out': !player.isAlive,
+                  'is-disconnected': player.disconnected 
+              }"
             >
-              <span>{{ card.content }}</span>
+              <div class="player-card">
+                  <div class="response-indicator" v-if="store.room.playersWhoResponded.includes(player.id)">✔</div>
+                  <img
+                  :src="player.avatar || '/assets/default-avator.png'"
+                  alt="avatar"
+                  />
+                  <span class="player-name">{{ player.name }}</span>
+                  <span class="card-count">{{ player.hand.length }}张牌</span>
+              </div>
             </div>
-          </div>
+          </transition-group>
+        </div>
+        <div class="game-log-area">
+          <GameLog :log="store.room.log" />
         </div>
       </div>
       <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
@@ -75,13 +76,15 @@
         <span>{{ myPlayer.name }}</span>
       </div>
       <div class="my-cards-hand">
-        <div
-          v-for="card in myPlayer.hand"
-          :key="card.id"
-          class="card my-hand-card"
-        >
-          <span>{{ card.content }}</span>
-        </div>
+        <transition-group name="card-hand">
+          <div
+            v-for="card in myPlayer.hand"
+            :key="card.id"
+            class="card my-hand-card"
+          >
+            <span>{{ card.content }}</span>
+          </div>
+        </transition-group>
       </div>
       <div class="actions">
         <button 
@@ -103,11 +106,34 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { socket } from '../socket';
 import { store } from '../store';
 import Notebook from './Notebook.vue';
 import GuessModal from './GuessModal.vue';
+import GameLog from './GameLog.vue';
+
+const showTurnIndicator = ref(false);
+
+const currentTurnPlayerName = computed(() => {
+    return store.room?.players.find(p => p.id === store.room.currentTurn)?.name || '';
+});
+
+let turnIndicatorTimeout = null;
+
+watch(() => store.room?.currentTurn, (newTurn, oldTurn) => {
+    if (newTurn && newTurn !== oldTurn) {
+        showTurnIndicator.value = true;
+        
+        if (turnIndicatorTimeout) {
+            clearTimeout(turnIndicatorTimeout);
+        }
+
+        turnIndicatorTimeout = setTimeout(() => {
+            showTurnIndicator.value = false;
+        }, 2500); // Show for 2.5 seconds
+    }
+}, { immediate: true }); // Use immediate to catch the initial turn
 
 const isNotebookOpen = ref(true);
 const sentenceBuilder = ref({ person: null, place: null, event: null });
@@ -173,6 +199,47 @@ const confirmSentence = () => {
 </script>
 
 <style scoped>
+.turn-indicator-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 500;
+    animation: fadeIn 0.3s ease;
+}
+
+.turn-indicator-box {
+    background-color: #2c3e50;
+    color: #fff;
+    padding: 30px 60px;
+    border-radius: 15px;
+    font-size: 2.5em;
+    font-weight: bold;
+    border: 3px solid #ffeb3b;
+    box-shadow: 0 0 20px #ffeb3b;
+    animation: popIn 0.4s ease-out;
+}
+
+.turn-player-name {
+    color: #ffeb3b;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes popIn {
+    0% { transform: scale(0.5); opacity: 0; }
+    80% { transform: scale(1.05); opacity: 1; }
+    100% { transform: scale(1); }
+}
+
 .game-container {
   background-size: cover;
   background-position: center;
@@ -238,11 +305,27 @@ const confirmSentence = () => {
   background-color: rgba(255, 255, 0, 0.3);
   box-shadow: 0 0 10px #ffeb3b;
 }
-.player-slot.is-out .player-card {
+.player-slot.is-out .player-card,
+.player-slot.is-disconnected .player-card {
     background-color: #555;
     opacity: 0.6;
     filter: grayscale(80%);
 }
+
+.player-slot.is-disconnected .player-card::after {
+    content: '离线';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ffc107;
+    font-size: 20px;
+    font-weight: bold;
+    background-color: rgba(0,0,0,0.5);
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
 .player-card {
   background-color: rgba(0, 0, 0, 0.4);
   border-radius: 8px;
@@ -250,6 +333,7 @@ const confirmSentence = () => {
   text-align: center;
   width: 120px;
   transition: all 0.3s ease;
+  position: relative; /* Needed for absolute positioning of the indicator */
 }
 .player-card img {
   width: 50px;
@@ -261,22 +345,16 @@ const confirmSentence = () => {
   display: block;
   font-weight: bold;
 }
-.public-cards-area {
-  background-color: rgba(0, 0, 0, 0.3);
-  border-radius: 8px;
-  padding: 15px;
-  flex-grow: 1;
+.public-cards-area { /* This is the old class name */
+    display: none; 
 }
-.area-title {
-  margin-bottom: 10px;
-  font-size: 18px;
-  text-align: center;
-}
-.card-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
+
+.game-log-area {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    flex-grow: 1;
+    min-height: 0; /* Allow flex-grow to work correctly */
 }
 .notebook-sidebar {
   position: fixed;
@@ -393,5 +471,45 @@ const confirmSentence = () => {
     padding: 10px 20px;
     border-radius: 4px;
     cursor: pointer;
+}
+.response-indicator {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #28a745;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    font-weight: bold;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+.player-fade-enter-active,
+.player-fade-leave-active {
+  transition: all 0.5s ease;
+}
+.player-fade-enter-from,
+.player-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+.player-fade-move {
+  transition: transform 0.5s ease;
+}
+.card-hand-enter-active,
+.card-hand-leave-active {
+  transition: all 0.5s ease;
+}
+.card-hand-enter-from,
+.card-hand-leave-to {
+  opacity: 0;
+  transform: translateY(30px) scale(0.9);
+}
+.card-hand-move {
+    transition: transform 0.5s ease;
 }
 </style>
