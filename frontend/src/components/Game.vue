@@ -1,109 +1,98 @@
 <template>
-  <div class="game-container">
+  <div class="game-page-container">
     <TurnTimer />
-    <div class="turn-indicator-overlay" v-if="showTurnIndicator">
-        <div class="turn-indicator-box">
-            轮到 <span class="turn-player-name">{{ currentTurnPlayerName }}</span> 行动了！
-        </div>
-    </div>
-    <header class="game-header">
-      <div class="logo">
-        <img src="/assets/listen-logo.png" alt="哎哎我听说 Logo" />
+    <div class="top-bar">
+      <div class="logo-container">
+        <img src="/assets/listen-logo.png" alt="Logo" />
       </div>
-      <div class="room-info">房间：{{ store.room.id }}</div>
-      <div class="back-card-container">
-        <div class="back-card"></div>
-        <div class="back-card"></div>
-        <div class="back-card"></div>
+      <div class="room-info">房间: {{ store.room.id }}</div>
+      <div class="back-card-display">
         <span>底牌 (3)</span>
+        <div class="cards">
+            <div class="back-card"></div>
+            <div class="back-card"></div>
+            <div class="back-card"></div>
+        </div>
       </div>
-    </header>
+    </div>
 
-    <main class="game-board">
-      <div class="game-area">
-        <div class="sentence-builder-area" v-if="isMyTurn">
-          <h3>轮到你造句了！</h3>
-          <div class="sentence-slots">
-            <div class="slot">{{ sentenceBuilder.person?.content || '人物' }}</div>
-            <div class="slot">{{ sentenceBuilder.place?.content || '地点' }}</div>
-            <div class="slot">{{ sentenceBuilder.event?.content || '事件' }}</div>
-          </div>
-          <button class="confirm-sentence-btn" @click="confirmSentence">确认造句</button>
-        </div>
-        <div class="players-area">
-          <transition-group name="player-fade">
-            <div
-              v-for="player in store.room.players"
-              :key="player.id"
-              class="player-slot"
-              :class="{ 
-                  'current-turn': player.id === store.room.currentTurn, 
-                  'is-out': !player.isAlive,
-                  'is-disconnected': player.disconnected 
-              }"
-            >
-              <div class="player-card">
-                  <div class="response-indicator" v-if="store.room.playersWhoResponded.includes(player.id)">✔</div>
-                  <img
-                  :src="player.avatar || '/assets/default-avator.png'"
-                  alt="avatar"
-                  />
-                  <span class="player-name">{{ player.name }}</span>
-                  <span class="card-count">{{ player.hand.length }}张牌</span>
-              </div>
+    <div class="main-layout">
+      <div class="left-sidebar">
+        <transition-group name="player-fade" tag="div" class="players-list">
+          <div
+            v-for="player in store.room.players"
+            :key="player.id"
+            class="player-slot"
+            :class="{ 
+                'current-turn': player.id === store.room.currentTurn, 
+                'is-out': !player.isAlive,
+                'is-disconnected': player.disconnected 
+            }"
+          >
+            <img :src="player.avatar || '/assets/default-avator.png'" alt="avatar" />
+            <div class="player-details">
+              <span class="player-name">{{ player.name }}</span>
+              <span class="card-count">{{ player.hand.length }} 张牌</span>
             </div>
-          </transition-group>
-        </div>
-        <div class="game-log-area">
-          <GameLog :log="store.room.log" />
+            <div class="response-indicator" v-if="store.room.playersWhoResponded.includes(player.id)">✔</div>
+          </div>
+        </transition-group>
+      </div>
+
+      <div class="center-area">
+        <div class="center-content-wrapper">
+            <div class="sentence-builder-area" v-if="isMyTurn && store.room.gameState === 'playing'">
+                <h3>轮到你造句了！请从右侧牌库选择卡牌组成句子。</h3>
+                <div class="sentence-slots">
+                    <div class="slot" :class="{ filled: !!sentenceBuilder.person }">{{ sentenceBuilder.person?.content || '人物' }}</div>
+                    <div class="slot" :class="{ filled: !!sentenceBuilder.place }">{{ sentenceBuilder.place?.content || '地点' }}</div>
+                    <div class="slot" :class="{ filled: !!sentenceBuilder.event }">{{ sentenceBuilder.event?.content || '事件' }}</div>
+                </div>
+                <button 
+                    class="confirm-sentence-btn" 
+                    @click="confirmSentence" 
+                    :disabled="!isSentenceComplete"
+                >
+                    确认造句
+                </button>
+            </div>
+            <GameLog :log="store.room.log" />
         </div>
       </div>
+
       <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
         <button class="notebook-toggle-btn" @click="isNotebookOpen = !isNotebookOpen">
-          <span class="notebook-toggle-btn-text">记事本 | 牌库</span>
+            <span>记<br>事<br>本<br>|<br>牌<br>库</span>
         </button>
         <div class="notebook-content">
-          <Notebook
-            :notebook-data="myPlayer.notebook"
-            :sentence-builder="sentenceBuilder"
-            @update:notebookData="updateNotebook"
-            @make-sentence="handleMakeSentence"
-          />
+            <Notebook 
+                :notebook-data="myPlayer.notebook"
+                :sentence-builder="sentenceBuilder"
+                @update:notebookData="updateNotebook" 
+                @make-sentence="handleMakeSentence"
+            />
         </div>
       </aside>
-    </main>
+    </div>
 
-    <footer class="bottom-bar">
+    <div class="bottom-bar">
       <div class="my-info">
         <div class="my-avatar"></div>
         <span>{{ myPlayer.name }}</span>
       </div>
       <div class="my-cards-hand">
         <transition-group name="card-hand">
-          <div
-            v-for="card in myPlayer.hand"
-            :key="card.id"
-            class="card my-hand-card"
-          >
+          <div v-for="card in myPlayer.hand" :key="card.id" class="card my-hand-card">
             <span>{{ card.content }}</span>
           </div>
         </transition-group>
       </div>
       <div class="actions">
-        <button 
-            @click="isGuessModalOpen = true" 
-            v-if="isMyTurn && store.room.gameState === 'playing'"
-        >
-            猜底牌
-        </button>
-        <button
-          @click="startGame"
-          v-if="isHost && store.room.gameState === 'waiting'"
-        >
-          开始游戏
-        </button>
+        <button @click="isGuessModalOpen = true" v-if="isMyTurn && store.room.gameState === 'playing'">猜底牌</button>
+        <button @click="startGame" v-if="isHost && store.room.gameState === 'waiting'">开始游戏</button>
       </div>
-    </footer>
+    </div>
+    
     <GuessModal :is-open="isGuessModalOpen" @close="isGuessModalOpen = false" />
     <div class="game-over-overlay" v-if="store.isGameOver">
         <div class="game-over-box">
@@ -121,6 +110,11 @@
                 </div>
             </div>
             <button class="return-btn" @click="returnToLobby">返回大厅</button>
+        </div>
+    </div>
+    <div class="turn-indicator-overlay" v-if="showTurnIndicator">
+        <div class="turn-indicator-box">
+            轮到 <span class="turn-player-name">{{ currentTurnPlayerName }}</span> 行动了！
         </div>
     </div>
   </div>
@@ -179,6 +173,10 @@ const myPlayer = computed(
     }
 );
 
+const isSentenceComplete = computed(() => {
+    return !!(sentenceBuilder.value.person && sentenceBuilder.value.place && sentenceBuilder.value.event);
+});
+
 const startGame = () => {
   socket.emit("startGame", { roomId: store.room.id }, (response) => {
     if (!response.success) {
@@ -229,6 +227,282 @@ const returnToLobby = () => {
 </script>
 
 <style scoped>
+/* Main container */
+.game-page-container {
+  width: 100vw;
+  height: 100vh;
+  background-image: url('/assets/game-bg.png');
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  overflow: hidden;
+}
+
+/* Top Bar */
+.top-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background-color: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(5px);
+}
+.logo-container img { height: 40px; }
+.room-info { font-size: 18px; }
+.back-card-display { text-align: right; }
+.back-card-display .cards { display: flex; margin-top: 5px; }
+.back-card {
+    width: 40px;
+    height: 60px;
+    background-image: url('/assets/back-card.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    margin-left: -15px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+}
+
+/* Main Layout */
+.main-layout {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden; /* Prevent scrollbars */
+  position: relative;
+}
+
+/* Left Sidebar for Players */
+.left-sidebar {
+  width: 200px;
+  padding: 20px 10px;
+  overflow-y: auto;
+}
+.players-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.player-slot {
+  display: flex;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.4);
+  padding: 10px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+  position: relative;
+}
+.player-slot.current-turn {
+  border-color: #ffeb3b;
+  box-shadow: 0 0 10px #ffeb3b;
+}
+.player-slot img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+.player-details {
+  display: flex;
+  flex-direction: column;
+}
+.player-name { font-weight: bold; }
+.card-count { font-size: 12px; color: #ccc; }
+
+/* Center Area for Log/Actions */
+.center-area {
+  flex-grow: 1;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-y: auto;
+}
+
+.center-content-wrapper {
+  width: 100%;
+  max-width: 700px;
+}
+
+.notebook-sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100%;
+    transform: translateX(calc(100% - 40px)); /* Start with only button visible */
+    transition: transform 0.4s ease-in-out;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+}
+
+.notebook-sidebar.is-open {
+    transform: translateX(0);
+}
+
+.notebook-toggle-btn {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px;
+    height: auto;
+    background-color: rgba(20, 20, 20, 0.7);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-right: none;
+    border-radius: 8px 0 0 8px;
+    color: white;
+    cursor: pointer;
+    padding: 20px 5px;
+    font-size: 16px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.notebook-content {
+    width: 100%;
+    height: 100%;
+    background-color: rgba(10, 10, 10, 0.6);
+    backdrop-filter: blur(8px);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Bottom Bar for Player's Hand */
+.bottom-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(5px);
+}
+.my-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-right: 20px;
+}
+.my-avatar {
+  width: 50px;
+  height: 50px;
+  background-image: url("/assets/default-avator.png");
+  background-size: contain;
+  border-radius: 50%;
+}
+.my-cards-hand {
+  flex-grow: 1;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  min-height: 130px; /* Ensure space for cards */
+}
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.card {
+    width: 100px;
+    height: 140px;
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+    word-break: break-all;
+    position: relative;
+    transition: transform 0.2s ease-out;
+}
+
+.my-hand-card {
+    background: linear-gradient(145deg, #4a4a4a, #2a2a2a);
+    border: 1px solid #555;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    cursor: default; /* Not interactive */
+}
+
+.my-hand-card:hover {
+    transform: translateY(-8px);
+}
+
+.sentence-builder-area {
+    background-color: rgba(0, 0, 0, 0.4);
+    border: 1px solid #ffeb3b;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    backdrop-filter: blur(4px);
+    margin-bottom: 20px; /* Space from log */
+}
+
+.sentence-builder-area h3 {
+    margin: 0 0 15px 0;
+    font-weight: 300;
+    font-size: 1.1em;
+    color: #eee;
+}
+
+.sentence-slots {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.slot {
+    background-color: rgba(0, 0, 0, 0.3);
+    color: #999;
+    padding: 10px 20px;
+    border-radius: 6px;
+    min-width: 90px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed #777;
+    transition: all 0.3s ease;
+}
+
+.slot.filled {
+    background-color: #3e4f62;
+    color: #fff;
+    border-color: #6a8bb1;
+    border-style: solid;
+    font-weight: bold;
+}
+
+.confirm-sentence-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.3s;
+}
+
+.confirm-sentence-btn:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.confirm-sentence-btn:not(:disabled):hover {
+    background-color: #66bb6a;
+}
+
+/* Overlays and other specific elements (most styles remain the same) */
 .turn-indicator-overlay {
     position: fixed;
     top: 0;
@@ -270,282 +544,6 @@ const returnToLobby = () => {
     100% { transform: scale(1); }
 }
 
-.game-container {
-  background-size: cover;
-  background-position: center;
-  width: 100vw;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  color: #fff;
-  overflow: hidden;
-  background: url("/assets/game-bg.png") no-repeat center center;
-  background-size: contain;
-}
-.game-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 30px;
-  background-color: rgba(0, 0, 0, 0.2);
-}
-.logo img {
-  height: 50px;
-}
-.back-card-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.back-card-container span {
-    margin-top: 5px;
-}
-.back-card {
-    display: inline-block;
-    margin: 0 -15px; /* Overlap cards slightly */
-}
-.back-card:nth-child(1) { transform: rotate(-5deg); }
-.back-card:nth-child(2) { z-index: 1; transform: scale(1.05); }
-.back-card:nth-child(3) { transform: rotate(5deg); }
-.game-board {
-  display: flex;
-  flex-grow: 1;
-  padding: 20px;
-  gap: 20px;
-  position: relative;
-  overflow: hidden; /* Important for the sidebar transition */
-}
-.game-area {
-  flex: 3;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  transition: margin-right 0.4s ease-in-out;
-}
-.notebook-sidebar.is-open + .game-area {
-    /* This might not be needed if sidebar is fixed, but can be useful */
-    /* margin-right: 400px; */
-}
-.players-area {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-.player-slot {
-  padding: 5px;
-  border-radius: 12px;
-}
-.player-slot.current-turn {
-  background-color: rgba(255, 255, 0, 0.3);
-  box-shadow: 0 0 10px #ffeb3b;
-}
-.player-slot.is-out .player-card,
-.player-slot.is-disconnected .player-card {
-    background-color: #555;
-    opacity: 0.6;
-    filter: grayscale(80%);
-}
-
-.player-slot.is-disconnected .player-card::after {
-    content: '离线';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: #ffc107;
-    font-size: 20px;
-    font-weight: bold;
-    background-color: rgba(0,0,0,0.5);
-    padding: 5px 10px;
-    border-radius: 4px;
-}
-
-.player-card {
-  background-color: rgba(0, 0, 0, 0.4);
-  border-radius: 8px;
-  padding: 10px;
-  text-align: center;
-  width: 120px;
-  transition: all 0.3s ease;
-  position: relative; /* Needed for absolute positioning of the indicator */
-}
-.player-card img {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  margin-bottom: 5px;
-}
-.player-name {
-  display: block;
-  font-weight: bold;
-}
-.public-cards-area { /* This is the old class name */
-    display: none; 
-}
-
-.game-log-area {
-    background-color: rgba(0, 0, 0, 0.3);
-    border-radius: 8px;
-    padding: 15px;
-    flex-grow: 1;
-    min-height: 0; /* Allow flex-grow to work correctly */
-}
-.notebook-sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  width: 400px;
-  height: 100%;
-  transform: translateX(400px);
-  transition: transform 0.4s ease-in-out;
-  display: flex;
-  align-items: center;
-  z-index: 100;
-}
-.notebook-sidebar.is-open {
-  transform: translateX(0);
-}
-.notebook-toggle-btn {
-  position: absolute;
-  left: -30px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 30px;
-  height: auto;
-  background-color: #333;
-  border: none;
-  border-radius: 8px 0 0 8px;
-  color: white;
-  cursor: pointer;
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  padding: 10px 5px;
-  font-size: 16px;
-}
-.notebook-toggle-btn-text {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  writing-mode: vertical-lr;
-  text-orientation: mixed;
-}
-.notebook-content {
-  width: 100%;
-  height: 90%; /* Adjust height as needed */
-  max-height: 800px;
-}
-.bottom-bar {
-  display: flex;
-  align-items: center;
-  padding: 10px 20px;
-  background-color: rgba(0, 0, 0, 0.6);
-}
-.my-info {
-  text-align: center;
-  margin-right: 20px;
-}
-.my-avatar {
-  width: 50px;
-  height: 50px;
-  background-image: url("/assets/default-avator.png");
-  background-size: contain;
-}
-.my-cards-hand {
-  flex-grow: 1;
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-}
-.card {
-  width: 90px;
-  height: 130px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 16px;
-  font-weight: bold;
-  border-radius: 8px;
-  color: #fff;
-}
-.my-hand-card {
-  background-color: #333;
-  border: 1px solid #555;
-}
-.public-card {
-  background-color: #6c757d;
-}
-.actions {
-  margin-left: 20px;
-}
-.sentence-builder-area {
-    background-color: rgba(0, 0, 0, 0.5);
-    border: 1px solid #ffeb3b;
-    padding: 15px;
-    border-radius: 8px;
-    text-align: center;
-    margin-bottom: 20px;
-}
-.sentence-slots {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin: 10px 0;
-}
-.slot {
-    background-color: #555;
-    padding: 10px 20px;
-    border-radius: 4px;
-    min-width: 80px;
-}
-.confirm-sentence-btn {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.response-indicator {
-    position: absolute;
-    top: -5px;
-    right: -5px;
-    background-color: #28a745;
-    color: white;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 16px;
-    font-weight: bold;
-    box-shadow: 0 0 5px rgba(0,0,0,0.5);
-}
-.player-fade-enter-active,
-.player-fade-leave-active {
-  transition: all 0.5s ease;
-}
-.player-fade-enter-from,
-.player-fade-leave-to {
-  opacity: 0;
-  transform: scale(0.8);
-}
-.player-fade-move {
-  transition: transform 0.5s ease;
-}
-.card-hand-enter-active,
-.card-hand-leave-active {
-  transition: all 0.5s ease;
-}
-.card-hand-enter-from,
-.card-hand-leave-to {
-  opacity: 0;
-  transform: translateY(30px) scale(0.9);
-}
-.card-hand-move {
-    transition: transform 0.5s ease;
-}
 .game-over-overlay {
     position: fixed;
     top: 0;
@@ -588,5 +586,45 @@ const returnToLobby = () => {
     padding: 12px 30px;
     font-size: 18px;
     cursor: pointer;
+}
+.response-indicator {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background-color: #28a745;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    font-weight: bold;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+.player-fade-enter-active,
+.player-fade-leave-active {
+  transition: all 0.5s ease;
+}
+.player-fade-enter-from,
+.player-fade-leave-to {
+  opacity: 0;
+  transform: scale(0.8);
+}
+.player-fade-move {
+  transition: transform 0.5s ease;
+}
+.card-hand-enter-active,
+.card-hand-leave-active {
+  transition: all 0.5s ease;
+}
+.card-hand-enter-from,
+.card-hand-leave-to {
+  opacity: 0;
+  transform: translateY(30px) scale(0.9);
+}
+.card-hand-move {
+    transition: transform 0.5s ease;
 }
 </style>
