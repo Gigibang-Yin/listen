@@ -23,6 +23,8 @@ const createRoom = (roomId) => {
     gameState: "waiting", // waiting, playing, responding, finished
     currentTurn: null,
     turnEndsAt: null, // Add this
+    respondingEndsAt: null,
+    viewingEndsAt: null,
     currentSentence: null,
     responses: [],
     playersWhoResponded: [],
@@ -179,9 +181,57 @@ const startGame = (roomId) => {
   // 5. Set game state
   room.gameState = "playing";
   room.currentTurn = room.players[Math.floor(Math.random() * numPlayers)].id;
+  room.turnEndsAt = Date.now() + GAME_CONFIG.TURN_TIMER; // FIX: Add timestamp for the first turn
   room.log.push("游戏开始！");
+  room.log.push(
+    `轮到 ${room.players.find((p) => p.id === room.currentTurn).name}。`
+  );
+
+  clearTimer(roomId);
+  timers[roomId] = setTimeout(() => {
+    const timedOutPlayer = room.players.find((p) => p.id === room.currentTurn);
+    if (timedOutPlayer) {
+      room.log.push(`${timedOutPlayer.name} 操作超时，自动跳过。`);
+    }
+    const updatedRoom = moveToNextTurn(roomId);
+    if (updatedRoom && global.io) {
+      global.io.to(roomId).emit("roomUpdate", updatedRoom);
+    }
+  }, GAME_CONFIG.TURN_TIMER);
 
   return room;
+};
+
+const checkIfAllResponded = (roomId) => {
+  const room = getRoom(roomId);
+  if (!room) return;
+
+  const respondingPlayers = room.players.filter(
+    (p) => p.id !== room.currentTurn && p.isAlive
+  );
+  if (room.playersWhoResponded.length >= respondingPlayers.length) {
+    room.gameState = "viewing";
+    room.log.push("所有玩家已响应，请造句者选择一张牌查看。");
+    room.respondingEndsAt = null;
+    room.viewingEndsAt = Date.now() + GAME_CONFIG.VIEW_CARD_TIMER;
+
+    clearTimer(roomId);
+    timers[roomId] = setTimeout(() => {
+      const currentRoom = getRoom(roomId);
+      if (currentRoom && currentRoom.gameState === "viewing") {
+        const player = currentRoom.players.find(
+          (p) => p.id === currentRoom.currentTurn
+        );
+        if (player) {
+          currentRoom.log.push(`${player.name} 超时未查看，自动进入下一回合。`);
+        }
+        const updatedRoom = moveToNextTurn(roomId);
+        if (global.io) {
+          global.io.to(roomId).emit("roomUpdate", updatedRoom);
+        }
+      }
+    }, GAME_CONFIG.VIEW_CARD_TIMER);
+  }
 };
 
 const makeSentence = (roomId, playerId, sentence) => {
@@ -197,6 +247,8 @@ const makeSentence = (roomId, playerId, sentence) => {
 
   room.currentSentence = sentence;
   room.gameState = "responding"; // State changes to waiting for card responses
+  room.turnEndsAt = null;
+  room.respondingEndsAt = Date.now() + GAME_CONFIG.RESPONSE_TIMER;
   room.responses = []; // Clear previous responses
   room.playersWhoResponded = []; // Clear previous responders
 
@@ -204,8 +256,29 @@ const makeSentence = (roomId, playerId, sentence) => {
     `${player.name} 造句: ${sentence.person.content}, ${sentence.place.content}, ${sentence.event.content}`
   );
 
-  clearTimer(roomId); // Correctly clears the turn timer
-  // We could start a response timer here if needed
+  clearTimer(roomId);
+  timers[roomId] = setTimeout(() => {
+    const room = getRoom(roomId);
+    if (!room || room.gameState !== "responding") return;
+
+    const playersToAutoPass = room.players.filter(
+      (p) =>
+        p.id !== room.currentTurn &&
+        p.isAlive &&
+        !room.playersWhoResponded.includes(p.id)
+    );
+
+    if (playersToAutoPass.length > 0) {
+      room.log.push(`响应时间到, 未出牌的玩家自动跳过。`);
+      playersToAutoPass.forEach((p) => {
+        room.playersWhoResponded.push(p.id);
+      });
+      checkIfAllResponded(roomId);
+      if (global.io) {
+        global.io.to(roomId).emit("roomUpdate", room);
+      }
+    }
+  }, GAME_CONFIG.RESPONSE_TIMER);
 
   return room;
 };
@@ -233,24 +306,8 @@ const respondToSentence = (roomId, playerId, card) => {
   room.playersWhoResponded.push(playerId);
   room.log.push(`${player.name} 出了一张牌。`);
 
-  // Check if all other players have responded
-  const respondingPlayers = room.players.filter(
-    (p) => p.id !== room.currentTurn
-  );
-  if (room.playersWhoResponded.length === respondingPlayers.length) {
-    room.gameState = "viewing";
-    room.log.push("所有玩家已响应，请造句者选择一张牌查看。");
+  checkIfAllResponded(roomId); // Centralized logic call
 
-    clearTimer(roomId);
-    timers[roomId] = setTimeout(() => {
-      const player = room.players.find((p) => p.id === room.currentTurn);
-      room.log.push(`${player.name} 超时未查看，自动进入下一回合。`);
-      const updatedRoom = moveToNextTurn(roomId);
-      if (global.io) {
-        global.io.to(roomId).emit("roomUpdate", updatedRoom);
-      }
-    }, GAME_CONFIG.VIEW_CARD_TIMER);
-  }
   return room;
 };
 
@@ -263,6 +320,7 @@ const viewCard = (roomId, viewerId, targetPlayerId) => {
     throw new Error("Not the time to view cards.");
 
   clearTimer(roomId); // Clear the view timer as soon as the player acts
+  room.viewingEndsAt = null;
   const response = room.responses.find((r) => r.player.id === targetPlayerId);
   if (!response)
     throw new Error("This player did not respond or response not found.");
@@ -313,6 +371,9 @@ const moveToNextTurn = (roomId) => {
       global.io.to(roomId).emit("roomUpdate", updatedRoom);
     }
   }, GAME_CONFIG.TURN_TIMER);
+
+  room.viewingEndsAt = null;
+  room.respondingEndsAt = null;
 
   return room;
 };

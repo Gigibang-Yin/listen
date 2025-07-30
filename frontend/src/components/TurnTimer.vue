@@ -6,12 +6,29 @@
 </template>
 
 <script setup>
-import { ref, watch, onUnmounted } from 'vue';
+import { ref, watch, onUnmounted, computed } from 'vue';
 import { store } from '../store';
+import { GAME_CONFIG } from '../game/gameConfig.js';
 
 const timeLeft = ref(0);
 const timerPercentage = ref(100);
 let interval = null;
+
+const activeTimer = computed(() => {
+    if (!store.room) return null;
+    const { gameState, turnEndsAt, respondingEndsAt, viewingEndsAt } = store.room;
+
+    if (gameState === 'playing' && turnEndsAt) {
+        return { endTime: turnEndsAt, duration: GAME_CONFIG.TURN_TIMER };
+    }
+    if (gameState === 'responding' && respondingEndsAt) {
+        return { endTime: respondingEndsAt, duration: GAME_CONFIG.RESPONSE_TIMER };
+    }
+    if (gameState === 'viewing' && viewingEndsAt) {
+        return { endTime: viewingEndsAt, duration: GAME_CONFIG.VIEW_CARD_TIMER };
+    }
+    return null;
+});
 
 const stopTimer = () => {
     if (interval) clearInterval(interval);
@@ -36,10 +53,9 @@ const startTimer = (endTime, totalDuration) => {
     interval = setInterval(update, 100);
 };
 
-watch(() => store.room?.turnEndsAt, (newEndTime) => {
-    if (newEndTime && store.room.gameState === 'playing') {
-        const totalDuration = newEndTime - (Date.now() - (store.room.turnEndsAt - newEndTime));
-        startTimer(newEndTime, totalDuration);
+watch(activeTimer, (newTimer) => {
+    if (newTimer) {
+        startTimer(newTimer.endTime, newTimer.duration);
     } else {
         stopTimer();
     }
