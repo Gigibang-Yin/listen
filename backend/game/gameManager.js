@@ -195,7 +195,12 @@ const startGame = (roomId) => {
     }
     const updatedRoom = moveToNextTurn(roomId);
     if (updatedRoom && global.io) {
-      global.io.to(roomId).emit("roomUpdate", updatedRoom);
+      if (updatedRoom.gameState === "finished") {
+        global.io.to(roomId).emit("gameOver", { room: updatedRoom });
+        setTimeout(() => removeRoom(roomId), 10000);
+      } else {
+        global.io.to(roomId).emit("roomUpdate", updatedRoom);
+      }
     }
   }, GAME_CONFIG.TURN_TIMER);
 
@@ -369,7 +374,12 @@ const moveToNextTurn = (roomId) => {
     }
     const updatedRoom = moveToNextTurn(roomId); // The key change: just move to the next turn
     if (updatedRoom && global.io) {
-      global.io.to(roomId).emit("roomUpdate", updatedRoom);
+      if (updatedRoom.gameState === "finished") {
+        global.io.to(roomId).emit("gameOver", { room: updatedRoom });
+        setTimeout(() => removeRoom(roomId), 10000);
+      } else {
+        global.io.to(roomId).emit("roomUpdate", updatedRoom);
+      }
     }
   }, GAME_CONFIG.TURN_TIMER);
 
