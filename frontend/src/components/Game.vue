@@ -46,12 +46,14 @@
           </div>
         </div>
       </div>
-      <div class="notebook-area">
-        <Notebook
-          :notebook-data="myPlayer.notebook"
-          @update:notebookData="updateNotebook"
-        />
-      </div>
+      <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
+        <button class="notebook-toggle-btn" @click="isNotebookOpen = !isNotebookOpen">
+          <span>记事本</span>
+        </button>
+        <div class="notebook-content">
+          <Notebook :notebook-data="myPlayer.notebook" @update:notebookData="updateNotebook" @make-sentence="handleMakeSentence"/>
+        </div>
+      </aside>
     </main>
 
     <footer class="bottom-bar">
@@ -81,10 +83,12 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { socket } from "../socket";
-import { store } from "../store";
-import Notebook from "./Notebook.vue";
+import { ref, computed } from 'vue';
+import { socket } from '../socket';
+import { store } from '../store';
+import Notebook from './Notebook.vue';
+
+const isNotebookOpen = ref(true);
 
 const isHost = computed(
   () =>
@@ -116,6 +120,12 @@ const updateNotebook = (newNotebookData) => {
     player.notebook = newNotebookData;
   }
 };
+
+const handleMakeSentence = (card) => {
+    // Handle the logic for making a sentence with the selected card
+    console.log('Making a sentence with:', card);
+    alert(`用 ${card.content} 造句！`);
+}
 </script>
 
 <style scoped>
@@ -155,12 +165,19 @@ const updateNotebook = (newNotebookData) => {
   flex-grow: 1;
   padding: 20px;
   gap: 20px;
+  position: relative;
+  overflow: hidden; /* Important for the sidebar transition */
 }
 .game-area {
   flex: 3;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  transition: margin-right 0.4s ease-in-out;
+}
+.notebook-sidebar.is-open + .game-area {
+    /* This might not be needed if sidebar is fixed, but can be useful */
+    /* margin-right: 400px; */
 }
 .players-area {
   display: flex;
@@ -209,9 +226,42 @@ const updateNotebook = (newNotebookData) => {
   gap: 10px;
   justify-content: center;
 }
-.notebook-area {
-  flex: 2;
-  min-width: 350px;
+.notebook-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 400px;
+  height: 100%;
+  transform: translateX(400px);
+  transition: transform 0.4s ease-in-out;
+  display: flex;
+  align-items: center;
+  z-index: 100;
+}
+.notebook-sidebar.is-open {
+  transform: translateX(0);
+}
+.notebook-toggle-btn {
+  position: absolute;
+  left: -30px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 100px;
+  background-color: #333;
+  border: none;
+  border-radius: 8px 0 0 8px;
+  color: white;
+  cursor: pointer;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  padding: 10px 5px;
+  font-size: 16px;
+}
+.notebook-content {
+  width: 100%;
+  height: 90%; /* Adjust height as needed */
+  max-height: 800px;
 }
 .bottom-bar {
   display: flex;
