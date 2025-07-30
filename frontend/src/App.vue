@@ -55,15 +55,11 @@ onMounted(() => {
   });
 
   socket.on('gameOver', ({ room }) => {
-    store.room = room; // Update to the final room state
+    store.room = room;
+    store.isGameOver = true; // Set game over state
     const winnerName = room.winner ? room.winner.name : 'Someone';
-    const bottomCardPerson = room.bottomCards.person.content;
-    const bottomCardPlace = room.bottomCards.place.content;
-    const bottomCardEvent = room.bottomCards.event.content;
     showToast(`游戏结束！胜利者是 ${winnerName}！`, 'success', 10000);
-    // You might want to show the bottom cards in a more persistent way
-    // For now, it's in the log.
-    // Clear session storage after game over
+    // The log will show the bottom cards
     sessionStorage.removeItem('playerName');
     sessionStorage.removeItem('roomId');
   });

@@ -421,6 +421,14 @@ const clearTimer = (roomId) => {
   }
 };
 
+const removeRoom = (roomId) => {
+  clearTimer(roomId);
+  if (rooms[roomId]) {
+    delete rooms[roomId];
+    console.log(`Room ${roomId} has been removed.`);
+  }
+};
+
 module.exports = {
   createRoom,
   joinRoom,
@@ -432,6 +440,7 @@ module.exports = {
   viewCard,
   moveToNextTurn,
   guessBottomCard,
+  removeRoom, // Export the new function
   rooms,
   disconnectPlayer,
 };

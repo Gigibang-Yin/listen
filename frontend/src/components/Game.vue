@@ -105,6 +105,23 @@
       </div>
     </footer>
     <GuessModal :is-open="isGuessModalOpen" @close="isGuessModalOpen = false" />
+    <div class="game-over-overlay" v-if="store.isGameOver">
+        <div class="game-over-box">
+            <h2>游戏结束</h2>
+            <div class="winner-announcement">
+                胜利者是: <strong>{{ store.room.winner?.name }}</strong>
+            </div>
+            <div class="bottom-cards-reveal">
+                <h4>底牌是:</h4>
+                <div class="card-row">
+                    <div class="card revealed">{{ store.room.bottomCards.person.content }}</div>
+                    <div class="card revealed">{{ store.room.bottomCards.place.content }}</div>
+                    <div class="card revealed">{{ store.room.bottomCards.event.content }}</div>
+                </div>
+            </div>
+            <button class="return-btn" @click="returnToLobby">返回大厅</button>
+        </div>
+    </div>
   </div>
 </template>
 
@@ -200,6 +217,12 @@ const confirmSentence = () => {
             showToast(`错误: ${response.message}`, 'error');
         }
     });
+};
+
+const returnToLobby = () => {
+    store.room = null;
+    store.isGameOver = false;
+    // No need to disconnect, socket is still alive for the next game
 };
 </script>
 
@@ -520,5 +543,48 @@ const confirmSentence = () => {
 }
 .card-hand-move {
     transition: transform 0.5s ease;
+}
+.game-over-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 400;
+    animation: fadeIn 0.5s;
+}
+.game-over-box {
+    background-color: #2c3e50;
+    padding: 30px;
+    border-radius: 15px;
+    text-align: center;
+    border: 2px solid #ffeb3b;
+}
+.winner-announcement {
+    font-size: 24px;
+    margin: 15px 0;
+}
+.bottom-cards-reveal h4 {
+    margin-bottom: 10px;
+}
+.card-row {
+    display: flex;
+    gap: 15px;
+}
+.card.revealed {
+    background-color: #eee;
+    color: #333;
+    width: 100px;
+    height: 140px;
+}
+.return-btn {
+    margin-top: 25px;
+    padding: 12px 30px;
+    font-size: 18px;
+    cursor: pointer;
 }
 </style>

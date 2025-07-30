@@ -9,4 +9,5 @@ export const store = reactive({
   error: null,
   isResponding: false,
   sentenceToRespond: null,
+  isGameOver: false,
 });

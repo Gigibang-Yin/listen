@@ -13,6 +13,7 @@ const {
   moveToNextTurn,
   guessBottomCard,
   disconnectPlayer,
+  removeRoom,
 } = require("./game/gameManager");
 
 const app = express();
@@ -138,6 +139,15 @@ io.on("connection", (socket) => {
       console.error("Guess bottom card error:", error.message);
       callback({ success: false, message: error.message });
     }
+  });
+
+  socket.on("gameOver", ({ room }) => {
+    io.to(room.id).emit("gameOver", { room }); // Announce winner to everyone
+
+    // Schedule room cleanup after a delay to allow clients to receive the final message
+    setTimeout(() => {
+      removeRoom(room.id);
+    }, 10000); // 10 seconds delay
   });
 
   socket.on("disconnect", () => {
