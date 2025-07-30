@@ -1,6 +1,8 @@
 const { CARDS } = require("./cards");
+const { GAME_CONFIG } = require("./gameConfig");
 
 const rooms = {};
+const timers = {}; // To manage timers for each room
 
 // Helper function to shuffle an array
 const shuffle = (array) => {
@@ -20,6 +22,7 @@ const createRoom = (roomId) => {
     publicCards: [],
     gameState: "waiting", // waiting, playing, responding, finished
     currentTurn: null,
+    turnEndsAt: null, // Add this
     currentSentence: null,
     responses: [],
     playersWhoResponded: [],
@@ -201,6 +204,9 @@ const makeSentence = (roomId, playerId, sentence) => {
     `${player.name} 造句: ${sentence.person.content}, ${sentence.place.content}, ${sentence.event.content}`
   );
 
+  clearTimer(roomId); // Correctly clears the turn timer
+  // We could start a response timer here if needed
+
   return room;
 };
 
@@ -232,10 +238,19 @@ const respondToSentence = (roomId, playerId, card) => {
     (p) => p.id !== room.currentTurn
   );
   if (room.playersWhoResponded.length === respondingPlayers.length) {
-    room.gameState = "viewing"; // Next state: sentence maker views a card
+    room.gameState = "viewing";
     room.log.push("所有玩家已响应，请造句者选择一张牌查看。");
-  }
 
+    clearTimer(roomId);
+    timers[roomId] = setTimeout(() => {
+      const player = room.players.find((p) => p.id === room.currentTurn);
+      room.log.push(`${player.name} 超时未查看，自动进入下一回合。`);
+      const updatedRoom = moveToNextTurn(roomId);
+      if (global.io) {
+        global.io.to(roomId).emit("roomUpdate", updatedRoom);
+      }
+    }, GAME_CONFIG.VIEW_CARD_TIMER);
+  }
   return room;
 };
 
@@ -247,6 +262,7 @@ const viewCard = (roomId, viewerId, targetPlayerId) => {
   if (room.gameState !== "viewing")
     throw new Error("Not the time to view cards.");
 
+  clearTimer(roomId); // Clear the view timer as soon as the player acts
   const response = room.responses.find((r) => r.player.id === targetPlayerId);
   if (!response)
     throw new Error("This player did not respond or response not found.");
@@ -280,10 +296,23 @@ const moveToNextTurn = (roomId) => {
   // Reset for the new turn
   room.gameState = "playing";
   room.currentTurn = room.players[nextPlayerIndex].id;
+  room.turnEndsAt = Date.now() + GAME_CONFIG.TURN_TIMER; // Set the end timestamp
   room.currentSentence = null;
   room.responses = [];
   room.playersWhoResponded = [];
   room.log.push(`轮到 ${room.players[nextPlayerIndex].name}。`);
+
+  clearTimer(roomId);
+  timers[roomId] = setTimeout(() => {
+    const timedOutPlayer = room.players.find((p) => p.id === room.currentTurn);
+    if (timedOutPlayer) {
+      room.log.push(`${timedOutPlayer.name} 操作超时，自动跳过。`);
+    }
+    const updatedRoom = moveToNextTurn(roomId); // The key change: just move to the next turn
+    if (updatedRoom && global.io) {
+      global.io.to(roomId).emit("roomUpdate", updatedRoom);
+    }
+  }, GAME_CONFIG.TURN_TIMER);
 
   return room;
 };
@@ -321,6 +350,13 @@ const guessBottomCard = (roomId, playerId, guessedCards) => {
     room.log.push(`${player.name} 猜错了，出局了！`);
     const nextTurnRoom = moveToNextTurn(roomId);
     return { correct: false, room: nextTurnRoom, guessedCards };
+  }
+};
+
+const clearTimer = (roomId) => {
+  if (timers[roomId]) {
+    clearTimeout(timers[roomId]);
+    delete timers[roomId];
   }
 };
 

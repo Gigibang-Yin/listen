@@ -23,6 +23,7 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
+global.io = io; // Make io instance globally available
 
 const PORT = process.env.PORT || 3000;
 

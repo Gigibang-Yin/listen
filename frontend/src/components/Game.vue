@@ -1,5 +1,6 @@
 <template>
   <div class="game-container">
+    <TurnTimer />
     <div class="turn-indicator-overlay" v-if="showTurnIndicator">
         <div class="turn-indicator-box">
             轮到 <span class="turn-player-name">{{ currentTurnPlayerName }}</span> 行动了！
@@ -114,6 +115,7 @@ import { store } from '../store';
 import Notebook from './Notebook.vue';
 import GuessModal from './GuessModal.vue';
 import GameLog from './GameLog.vue';
+import TurnTimer from './TurnTimer.vue';
 
 const showTurnIndicator = ref(false);
 
