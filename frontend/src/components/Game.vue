@@ -496,11 +496,16 @@ const returnToLobby = () => {
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
     transition: background-color 0.2s;
 }
 
 .emoji-btn {
+  width: 40px;
+  height: 40px;
+  max-width: 40px;
+  max-height: 40px;
+  min-width: 40px;
+  min-height: 40px;
     background-color: #48484a;
     color: white;
 }
@@ -511,6 +516,8 @@ const returnToLobby = () => {
 .chat-send-btn {
     background-color: #f9ca24;
     color: #1c1c1e;
+    font-size: 16px;
+    white-space: nowrap;
 }
 
 .chat-send-btn:hover {

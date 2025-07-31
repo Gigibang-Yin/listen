@@ -1,5 +1,5 @@
 {
   "dependencies": {
-    "emoji-picker-vue": "^1.0.1"
+    "vue3-emoji-picker": "^1.1.8"
   }
 }
