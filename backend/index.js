@@ -85,20 +85,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("respondToSentence", ({ roomId, card }) => {
+  socket.on("respondToSentence", (data) => {
     try {
-      const room = respondToSentence(roomId, socket.id, card);
-      io.to(roomId).emit("roomUpdate", room);
-
-      // Notify the sentence maker that a player has responded
-      const sentenceMakerSocketId = room.currentTurn;
-      io.to(sentenceMakerSocketId).emit("playerResponded", {
-        playerId: socket.id,
-        playerName: room.players.find((p) => p.id === socket.id)?.name,
-      });
+      respondToSentence(data.roomId, socket.id, data.card);
+      // DO NOT broadcast from here. The gameManager now handles emitting updates.
     } catch (error) {
       console.error("Respond to sentence error:", error.message);
-      // Optionally send error back to client
+      // Optionally emit an error to the specific user
+      socket.emit("gameError", { message: error.message });
     }
   });
 

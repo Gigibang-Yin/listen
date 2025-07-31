@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import { socket } from './socket';
 import { store } from './store';
 import CreateRoom from './components/CreateRoom.vue';
@@ -10,6 +10,10 @@ import { useToast } from './composables/useToast';
 import Toast from './components/Toast.vue';
 
 const { showToast } = useToast();
+
+// Add state for the response modal
+const isResponseModalOpen = ref(false);
+const sentenceToRespond = ref(null);
 
 onMounted(() => {
   const savedPlayerName = sessionStorage.getItem('playerName');
@@ -49,10 +53,29 @@ onMounted(() => {
   });
 
   socket.on('newSentence', (sentence) => {
-      if (socket.id === store.room.currentTurn) return;
-      store.sentenceToRespond = sentence;
-      store.isResponding = true;
+      store.room.currentSentence = sentence;
+      store.room.gameState = 'responding';
+      // All players except the current turn player need to respond.
+      const myPlayer = store.room.players.find(p => p.id === socket.id);
+      if (myPlayer && store.room.currentTurn !== myPlayer.id) {
+          sentenceToRespond.value = sentence;
+          isResponseModalOpen.value = true;
+      }
   });
+
+  socket.on('viewCardPhase', ({ responses }) => {
+      store.room.gameState = 'viewing';
+      store.room.responses = responses; // Store responses for the viewer
+      isResponseModalOpen.value = false; // Close response modal for everyone
+      sentenceToRespond.value = null;
+
+      if (store.room.currentTurn === socket.id) {
+          // This logic should now be handled inside Game.vue or a dedicated ViewCardModal
+          // For now, let's just log it.
+          console.log("It's your turn to view a card.");
+      }
+  });
+
 
   socket.on('gameOver', ({ room }) => {
     console.log("Received gameOver event! Winner:", room.winner.name);
@@ -74,7 +97,11 @@ onMounted(() => {
     <Toast />
     <template v-if="store.room">
       <Game />
-      <ResponseModal />
+      <ResponseModal 
+        :is-open="isResponseModalOpen"
+        :sentence="sentenceToRespond"
+        @close="isResponseModalOpen = false"
+      />
       <ViewCardModal />
     </template>
     <template v-else>

@@ -6,12 +6,12 @@
                 <p>以下是其他玩家打出的牌，请选择一张查看。</p>
                 <div class="responded-cards-grid">
                     <div 
-                        v-for="response in store.room.responses" 
-                        :key="response.player.id"
+                        v-for="response in store.room?.responses" 
+                        :key="response.playerId"
                         class="card-to-view"
-                        @click="handleViewCard(response.player.id)"
+                        @click="handleViewCard(response.playerId)"
                     >
-                        <div class="player-name-tag">{{ response.player.name }}</div>
+                        <div class="player-name-tag">{{ getPlayerName(response.playerId) }}</div>
                     </div>
                 </div>
             </div>
@@ -36,6 +36,10 @@ const viewedCard = ref(null);
 const isVisible = computed(() => {
     return store.room?.gameState === 'viewing' && store.room?.currentTurn === socket.id;
 });
+
+const getPlayerName = (playerId) => {
+    return store.room?.players?.find(p => p.id === playerId)?.name || '';
+};
 
 const handleViewCard = (targetPlayerId) => {
     socket.emit('viewCard', { roomId: store.room.id, targetPlayerId }, (response) => {

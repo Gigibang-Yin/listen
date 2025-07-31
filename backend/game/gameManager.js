@@ -209,7 +209,7 @@ const startGame = (roomId) => {
 
 const checkIfAllResponded = (roomId) => {
   const room = getRoom(roomId);
-  if (!room) return;
+  if (!room) return false;
 
   const respondingPlayers = room.players.filter(
     (p) => p.id !== room.currentTurn && p.isAlive
@@ -219,6 +219,12 @@ const checkIfAllResponded = (roomId) => {
     room.log.push("所有玩家已响应，请造句者选择一张牌查看。");
     room.respondingEndsAt = null;
     room.viewingEndsAt = Date.now() + GAME_CONFIG.VIEW_CARD_TIMER;
+
+    // --- FIX: Emit room update when phase changes ---
+    if (global.io) {
+      global.io.to(roomId).emit("roomUpdate", room);
+    }
+    // ---------------------------------------------
 
     clearTimer(roomId);
     timers[roomId] = setTimeout(() => {
@@ -236,7 +242,9 @@ const checkIfAllResponded = (roomId) => {
         }
       }
     }, GAME_CONFIG.VIEW_CARD_TIMER);
+    return true; // State changed
   }
+  return false; // State did not change
 };
 
 const makeSentence = (roomId, playerId, sentence) => {
@@ -288,33 +296,95 @@ const makeSentence = (roomId, playerId, sentence) => {
   return room;
 };
 
-const respondToSentence = (roomId, playerId, card) => {
+function respondToSentence(roomId, playerId, card) {
   const room = getRoom(roomId);
-  if (!room) throw new Error("Room not found.");
-  if (room.gameState !== "responding")
-    throw new Error("Not the time to respond.");
-  if (room.playersWhoResponded.includes(playerId))
-    throw new Error("You have already responded.");
+  if (!room || !room.players || room.gameState !== "responding") {
+    // Added !room.players check
+    return { success: false, message: "Not in a valid responding state." };
+  }
 
   const player = room.players.find((p) => p.id === playerId);
-  if (!player) throw new Error("Player not found in this room.");
+  if (
+    !player ||
+    !player.isAlive ||
+    room.playersWhoResponded.includes(playerId)
+  ) {
+    return { success: false, message: "Player cannot respond." };
+  }
+
+  // --- Start of new validation logic ---
+  const hand = player.hand;
+  const sentence = room.currentSentence;
+  const matchingCards = hand.filter(
+    (c) =>
+      c.type !== "water" &&
+      (c.content === sentence.person?.content ||
+        c.content === sentence.place?.content ||
+        c.content === sentence.event?.content)
+  );
+  const waterCards = hand.filter((c) => c.type === "water");
 
   if (card) {
-    // Remove card from player's hand
-    const cardIndex = player.hand.findIndex((c) => c.id === card.id);
-    if (cardIndex === -1) throw new Error("Card not in your hand.");
-    player.hand.splice(cardIndex, 1);
+    // Player chose to play a card
+    const isCardInHand = hand.some((c) => c.id === card.id);
+    if (!isCardInHand) {
+      return { success: false, message: "Invalid card played." };
+    }
 
-    room.responses.push({ player, card });
+    if (matchingCards.length > 0) {
+      const isCardMatching = matchingCards.some((c) => c.id === card.id);
+      if (!isCardMatching) {
+        return {
+          success: false,
+          message: "You must play a matching card if you have one.",
+        };
+      }
+    } else if (waterCards.length > 0) {
+      if (card.type !== "water") {
+        return {
+          success: false,
+          message: "You must play a water card as you have no matching cards.",
+        };
+      }
+    } else {
+      // This case should not happen if player has cards, because it means they have non-matching, non-water cards.
+      // But the only valid play would be to pass (card: null).
+      return {
+        success: false,
+        message: "You have no valid cards to play, you should have passed.",
+      };
+    }
+  } else {
+    // Player chose to pass (card is null)
+    if (matchingCards.length > 0 || waterCards.length > 0) {
+      return {
+        success: false,
+        message: "You cannot pass, you have playable cards.",
+      };
+    }
+  }
+  // --- End of new validation logic ---
+
+  if (card) {
+    room.responses.push({ playerId, card });
+    player.hand = player.hand.filter((c) => c.id !== card.id);
+    room.log.push({ type: "respond", message: `${player.name} 已出牌。` });
+  } else {
+    // Player passes, no card added to responses
+    room.log.push({ type: "pass", message: `${player.name} 选择“过”。` });
   }
 
   room.playersWhoResponded.push(playerId);
-  room.log.push(`${player.name} 出了一张牌。`);
 
-  checkIfAllResponded(roomId); // Centralized logic call
+  // --- FIX: Check if state changed, and if not, send a normal update ---
+  const stateChangedToViewing = checkIfAllResponded(roomId);
+  if (!stateChangedToViewing && global.io) {
+    global.io.to(roomId).emit("roomUpdate", room);
+  }
+  // --------------------------------------------------------------------
 
-  return room;
-};
+  return { success: true };
+}
 
 const viewCard = (roomId, viewerId, targetPlayerId) => {
   const room = getRoom(roomId);
@@ -326,12 +396,17 @@ const viewCard = (roomId, viewerId, targetPlayerId) => {
 
   clearTimer(roomId); // Clear the view timer as soon as the player acts
   room.viewingEndsAt = null;
-  const response = room.responses.find((r) => r.player.id === targetPlayerId);
+  const response = room.responses.find((r) => r.playerId === targetPlayerId); // FIX: was r.player.id
   if (!response)
     throw new Error("This player did not respond or response not found.");
 
-  const player = room.players.find((p) => p.id === viewerId);
-  room.log.push(`${player.name} 查看了 ${response.player.name} 的牌。`);
+  const viewer = room.players.find((p) => p.id === viewerId);
+  const targetPlayer = room.players.find((p) => p.id === targetPlayerId); // FIX: find player for log
+
+  if (viewer && targetPlayer) {
+    // FIX: Check if players exist before logging
+    room.log.push(`${viewer.name} 查看了 ${targetPlayer.name} 的牌。`);
+  }
 
   // Return the card to be viewed privately
   return response.card;

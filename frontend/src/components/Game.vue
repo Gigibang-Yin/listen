@@ -66,7 +66,7 @@
         </button>
         <div class="notebook-content">
             <Notebook 
-                :notebook-data="myPlayer.notebook"
+                :notebook-data="myPlayer?.notebook"
                 :sentence-builder="sentenceBuilder"
                 @update:notebookData="updateNotebook" 
                 @make-sentence="handleMakeSentence"
@@ -78,11 +78,11 @@
     <div class="bottom-bar">
       <div class="my-info">
         <div class="my-avatar"></div>
-        <span>{{ myPlayer.name }}</span>
+        <span>{{ myPlayer?.name }}</span>
       </div>
       <div class="my-cards-hand">
         <transition-group name="card-hand">
-          <div v-for="card in myPlayer.hand" :key="card.id" class="card my-hand-card">
+          <div v-for="card in myPlayer?.hand" :key="card.id" class="card my-hand-card">
             <span>{{ card.content }}</span>
           </div>
         </transition-group>
@@ -134,7 +134,7 @@ const { showToast } = useToast();
 const showTurnIndicator = ref(false);
 
 const currentTurnPlayerName = computed(() => {
-    return store.room?.players.find(p => p.id === store.room.currentTurn)?.name || '';
+    return store.room?.players?.find(p => p.id === store.room.currentTurn)?.name || '';
 });
 
 let turnIndicatorTimeout = null;
@@ -160,13 +160,13 @@ const isGuessModalOpen = ref(false);
 const isHost = computed(
   () =>
     store.room &&
-    store.room.players.length > 0 &&
+    store.room.players?.length > 0 &&
     store.room.players[0].id === socket.id
 );
 const isMyTurn = computed(() => store.room?.currentTurn === socket.id);
 const myPlayer = computed(
   () =>
-    store.room?.players.find((p) => p.id === socket.id) || {
+    store.room?.players?.find((p) => p.id === socket.id) || {
       name: store.player.name, // Use stored name as a fallback
       hand: [],
       notebook: {},
@@ -188,7 +188,7 @@ const startGame = () => {
 const updateNotebook = (newNotebookData) => {
   // Here you would emit an event to the server to save the notebook state
   // For now, we just update it locally
-  const player = store.room.players.find((p) => p.id === socket.id);
+  const player = store.room?.players?.find((p) => p.id === socket.id);
   if (player) {
     player.notebook = newNotebookData;
   }

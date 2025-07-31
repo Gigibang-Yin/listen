@@ -1,171 +1,177 @@
 <template>
-    <div class="modal-overlay" v-if="store.isResponding">
-        <div class="modal-content">
-            <h3>响应环节</h3>
-            <p><strong>{{ sentenceMakerName }}</strong> 造句了:</p>
-            <div class="sentence-display">
-                <span>{{ store.sentenceToRespond.person.content }}</span>
-                <span>{{ store.sentenceToRespond.place.content }}</span>
-                <span>{{ store.sentenceToRespond.event.content }}</span>
-            </div>
-
-            <h4>请选择一张牌打出：</h4>
-            <div class="card-selection">
-                <div 
-                    v-for="card in availableCards" 
-                    :key="card.id" 
-                    class="card response-card"
-                    :class="{ selected: selectedCard?.id === card.id }"
-                    @click="selectCard(card)"
-                >
-                    {{ card.content }}
-                </div>
-                 <div 
-                    v-if="availableCards.length === 0" 
-                    class="no-cards-message"
-                >
-                    你没有可出的牌。
-                </div>
-            </div>
-
-            <div class="actions">
-                <button @click="submitResponse" :disabled="!selectedCard">确认出牌</button>
-                <button @click="passResponse" v-if="!mustRespond">不出</button>
-            </div>
+  <div class="modal-overlay" v-if="isOpen">
+    <div class="modal-content">
+      <h3>轮到你响应了！</h3>
+      <p>当前句子: <strong>{{ sentence.person?.content }}</strong> 在 <strong>{{ sentence.place?.content }}</strong> <strong>{{ sentence.event?.content }}</strong></p>
+      
+      <div v-if="playableCards.length > 0">
+        <p>请选择一张牌响应:</p>
+        <div class="card-selection">
+          <div
+            v-for="card in playableCards"
+            :key="card.id"
+            class="card response-card"
+            :class="{ 'selected': selectedResponseCard?.id === card.id }"
+            @click="selectCard(card)"
+          >
+            <span>{{ card.content }}</span>
+            <small>{{ card.type === 'water' ? '水牌' : '功能牌' }}</small>
+          </div>
         </div>
+        <button @click="confirmResponse" :disabled="!selectedResponseCard">确认出牌</button>
+      </div>
+      <div v-else>
+        <p>你没有可响应的牌，将自动“过”。</p>
+        <button @click="passResponse">好的</button>
+      </div>
+
     </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
-import { socket } from '../socket';
+import { ref, computed, watch } from 'vue';
 import { store } from '../store';
+import { socket } from '../socket';
 
-const selectedCard = ref(null);
-
-const sentenceMakerName = computed(() => {
-    const maker = store.room?.players.find(p => p.id === store.room.currentTurn);
-    return maker ? maker.name : '一位玩家';
+const props = defineProps({
+  isOpen: Boolean,
+  sentence: Object,
 });
+
+const emit = defineEmits(['close']);
+
+const selectedResponseCard = ref(null);
 
 const myPlayer = computed(() => store.room?.players.find(p => p.id === socket.id));
 
-const availableCards = computed(() => {
-    if (!myPlayer.value || !store.sentenceToRespond) return [];
-    const sentence = store.sentenceToRespond;
-    const hand = myPlayer.value.hand;
+const playableCards = computed(() => {
+    if (!props.isOpen || !myPlayer.value || !props.sentence) {
+        return [];
+    }
 
-    return hand.filter(card => 
-        card.type === 'water' ||
-        (card.type === 'person' && card.content === sentence.person.content) ||
-        (card.type === 'place' && card.content === sentence.place.content) ||
-        (card.type === 'event' && card.content === sentence.event.content)
+    const hand = myPlayer.value?.hand || []; // Use optional chaining and provide a fallback
+    const { person, place, event } = props.sentence;
+
+    const matchingCards = hand.filter(card => 
+        card.type !== 'water' &&
+        (card.content === person?.content || card.content === place?.content || card.content === event?.content)
     );
+
+    if (matchingCards.length > 0) {
+        return matchingCards;
+    }
+
+    const waterCards = hand.filter(card => card.type === 'water');
+    if (waterCards.length > 0) {
+        return waterCards;
+    }
+
+    return []; // No playable cards
 });
 
-const mustRespond = computed(() => availableCards.value.some(c => c.type !== 'water'));
+const passResponse = () => {
+    socket.emit('respondToSentence', {
+        roomId: store.room.id,
+        card: null // Passing
+    });
+    emit('close');
+}
 
 const selectCard = (card) => {
-    selectedCard.value = card;
+  selectedResponseCard.value = card;
 };
 
-const submitResponse = () => {
-    if (!selectedCard.value) return;
-    socket.emit('respondToSentence', { roomId: store.room.id, card: selectedCard.value });
-    resetModal();
+const confirmResponse = () => {
+  if (!selectedResponseCard.value) return;
+  socket.emit('respondToSentence', {
+    roomId: store.room.id,
+    card: selectedResponseCard.value,
+  });
+  emit('close');
 };
 
-const passResponse = () => {
-    // A special "pass" card could be sent, or just an empty response.
-    // Let's send a null card.
-    socket.emit('respondToSentence', { roomId: store.room.id, card: null });
-    resetModal();
-};
-
-const resetModal = () => {
-    store.isResponding = false;
-    store.sentenceToRespond = null;
-    selectedCard.value = null;
-};
-
+watch(() => props.isOpen, (newVal) => {
+  if (newVal) {
+    selectedResponseCard.value = null; // Reset selection when modal opens
+    // If there are no playable cards, automatically pass after a short delay
+    if (playableCards.value.length === 0) {
+        setTimeout(() => {
+            // Check again in case modal was closed during timeout
+            if(props.isOpen) {
+                passResponse();
+            }
+        }, 2000);
+    }
+  }
+});
 </script>
 
 <style scoped>
 .modal-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 200;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
 }
 .modal-content {
-    background-color: #444;
-    padding: 25px;
-    border-radius: 12px;
-    width: 90%;
-    max-width: 500px;
-    text-align: center;
-    color: #fff;
-}
-.sentence-display {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    margin: 15px 0;
-    font-size: 18px;
-}
-.sentence-display span {
-    background-color: #555;
-    padding: 8px 15px;
-    border-radius: 4px;
+  background: #2c3e50;
+  padding: 25px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 500px;
+  text-align: center;
 }
 .card-selection {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    margin: 20px 0;
-    min-height: 80px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 15px 0;
 }
-.response-card {
-    width: 100px;
-    height: 140px;
-    background-color: #333;
-    border: 1px solid #666;
-    border-radius: 8px;
+.card {
+    width: 90px;
+    height: 130px;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
+    font-size: 16px;
+    font-weight: bold;
+    border-radius: 8px;
+    color: #fff;
     cursor: pointer;
+    border: 2px solid transparent;
     transition: all 0.2s ease;
 }
+.response-card {
+    background-color: #3e4f62;
+}
 .response-card.selected {
-    border-color: #4CAF50;
-    box-shadow: 0 0 10px #4CAF50;
+    border-color: #ffeb3b;
     transform: scale(1.05);
 }
-.no-cards-message {
-    align-self: center;
-    color: #aaa;
+.card small {
+    font-size: 10px;
+    margin-top: 5px;
+    color: #ccc;
 }
-.actions {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-}
-.actions button {
-    padding: 10px 25px;
-    border-radius: 4px;
+button {
+    padding: 10px 20px;
+    border-radius: 5px;
     border: none;
+    background-color: #4CAF50;
+    color: white;
     cursor: pointer;
 }
-.actions button:disabled {
-    background-color: #666;
+button:disabled {
+    background-color: #555;
     cursor: not-allowed;
 }
 </style> 
