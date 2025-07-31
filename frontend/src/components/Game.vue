@@ -1,69 +1,49 @@
 <template>
   <div class="game-page-container">
-    <div class="game-board-wrapper">
-        <div class="top-center-timer">
-            <TurnTimer />
+    <!-- Removed game-board-wrapper for a bolder, full-screen layout -->
+    <div class="top-center-timer">
+        <TurnTimer />
+    </div>
+    <div class="top-bar">
+      <div class="logo-container">
+        <img src="/assets/listen-logo.png" alt="Logo" />
+      </div>
+      <div class="room-info">房间: {{ store.room?.id }}</div>
+      <div class="back-card-display">
+        <span>底牌 (3)</span>
+        <div class="cards">
+            <div class="back-card"></div>
+            <div class="back-card"></div>
+            <div class="back-card"></div>
         </div>
-        <div class="top-bar">
-          <div class="logo-container">
-            <img src="/assets/listen-logo.png" alt="Logo" />
-          </div>
-          <div class="room-info">房间: {{ store.room.id }}</div>
-          <div class="back-card-display">
-            <span>底牌 (3)</span>
-            <div class="cards">
-                <div class="back-card"></div>
-                <div class="back-card"></div>
-                <div class="back-card"></div>
+      </div>
+    </div>
+
+    <div class="main-layout">
+      <div class="left-sidebar">
+        <transition-group name="player-fade" tag="div" class="players-list">
+          <div
+            v-for="player in store.room?.players"
+            :key="player.id"
+            class="player-slot"
+            :class="{ 
+                'current-turn': player.id === store.room.currentTurn, 
+                'is-out': !player.isAlive,
+                'is-disconnected': player.disconnected 
+            }"
+          >
+            <img :src="player.avatar || '/assets/default-avator.png'" alt="avatar" />
+            <div class="player-details">
+              <span class="player-name">{{ player.name }}</span>
+              <span class="card-count">{{ player.hand?.length || 0 }} 张牌</span>
             </div>
+            <div class="response-indicator" v-if="store.room?.playersWhoResponded?.includes(player.id)">✔</div>
           </div>
-        </div>
+        </transition-group>
+      </div>
 
-        <div class="main-layout">
-          <div class="left-sidebar">
-            <transition-group name="player-fade" tag="div" class="players-list">
-              <div
-                v-for="player in store.room.players"
-                :key="player.id"
-                class="player-slot"
-                :class="{ 
-                    'current-turn': player.id === store.room.currentTurn, 
-                    'is-out': !player.isAlive,
-                    'is-disconnected': player.disconnected 
-                }"
-              >
-                <img :src="player.avatar || '/assets/default-avator.png'" alt="avatar" />
-                <div class="player-details">
-                  <span class="player-name">{{ player.name }}</span>
-                  <span class="card-count">{{ player.hand.length }} 张牌</span>
-                </div>
-                <div class="response-indicator" v-if="store.room.playersWhoResponded.includes(player.id)">✔</div>
-              </div>
-            </transition-group>
-          </div>
-
-          <div class="center-area">
-            <div class="center-content-wrapper">
-                <GameLog :log="store.room.log" />
-            </div>
-          </div>
-
-          <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
-            <button class="notebook-toggle-btn" @click="isNotebookOpen = !isNotebookOpen">
-                <span>记<br>事<br>本<br>|<br>牌<br>库</span>
-            </button>
-            <div class="notebook-content">
-                <Notebook 
-                    :notebook-data="myPlayer?.notebook"
-                    :sentence-builder="sentenceBuilder"
-                    @update:notebookData="updateNotebook" 
-                    @make-sentence="handleMakeSentence"
-                />
-            </div>
-          </aside>
-        </div>
-
-        <div class="bottom-bar">
+      <div class="center-area">
+        <div class="center-content-wrapper">
             <div class="sentence-builder-area" v-if="isMyTurn && store.room.gameState === 'playing'">
                 <h3>轮到你造句了！请从右侧牌库选择卡牌组成句子。</h3>
                 <div class="sentence-slots">
@@ -79,34 +59,52 @@
                     确认造句
                 </button>
             </div>
-            <div class="default-bottom-bar" v-else>
-                <div class="my-info">
-                    <div class="my-avatar"></div>
-                    <span>{{ myPlayer?.name }}</span>
-                </div>
-                <div class="my-cards-hand">
-                    <transition-group name="card-hand-wrapper" tag="div" class="card-hand-inner">
-                    <div class="card-wrapper" v-for="card in myPlayer?.hand" :key="card.id" >
-                        <div 
-                        class="card my-hand-card"
-                        :class="{ 'is-playable': isCardPlayable(card.id) }"
-                        @dblclick="handleRespond(card)"
-                        >
-                        <span>{{ card.content }}</span>
-                        </div>
-                        <div class="card-type-label">{{ getCardTypeName(card.type) }}</div>
-                    </div>
-                    </transition-group>
-                    <div v-if="isMyTurnToRespond && playableCards.length === 0" class="no-cards-prompt">
-                    你没有可响应的牌，将自动“过”。
-                    </div>
-                </div>
-                <div class="actions">
-                    <button class="action-btn guess-btn" @click="isGuessModalOpen = true" v-if="isMyTurn && store.room.gameState === 'playing'">猜底牌</button>
-                    <button class="action-btn start-btn" @click="startGame" v-if="isHost && store.room.gameState === 'waiting'">开始游戏</button>
-                </div>
-            </div>
+            <GameLog :log="store.room?.log" />
         </div>
+      </div>
+
+      <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
+        <button class="notebook-toggle-btn" @click="isNotebookOpen = !isNotebookOpen">
+            <span>记<br>事<br>本<br>|<br>牌<br>库</span>
+        </button>
+        <div class="notebook-content">
+            <Notebook 
+                :notebook-data="myPlayer?.notebook"
+                :sentence-builder="sentenceBuilder"
+                @update:notebookData="updateNotebook" 
+                @make-sentence="handleMakeSentence"
+            />
+        </div>
+      </aside>
+    </div>
+
+    <div class="bottom-bar">
+      <!-- Content is now consistent, no more v-if/v-else -->
+      <div class="my-info">
+        <div class="my-avatar"></div>
+        <span>{{ myPlayer?.name }}</span>
+      </div>
+      <div class="my-cards-hand">
+        <transition-group name="card-hand-wrapper" tag="div" class="card-hand-inner">
+          <div class="card-wrapper" v-for="card in myPlayer?.hand" :key="card.id" >
+            <div 
+              class="card my-hand-card"
+              :class="{ 'is-playable': isCardPlayable(card.id) }"
+              @dblclick="handleRespond(card)"
+            >
+              <span>{{ card.content }}</span>
+            </div>
+            <div class="card-type-label">{{ getCardTypeName(card.type) }}</div>
+          </div>
+        </transition-group>
+        <div v-if="isMyTurnToRespond && playableCards.length === 0" class="no-cards-prompt">
+          你没有可响应的牌，将自动“过”。
+        </div>
+      </div>
+      <div class="actions">
+        <button class="action-btn guess-btn" @click="isGuessModalOpen = true" v-if="isMyTurn && store.room.gameState === 'playing'">猜底牌</button>
+        <button class="action-btn start-btn" @click="startGame" v-if="isHost && store.room.gameState === 'waiting'">开始游戏</button>
+      </div>
     </div>
     
     <GuessModal :is-open="isGuessModalOpen" @close="isGuessModalOpen = false" />
@@ -120,9 +118,9 @@
             <div class="bottom-cards-reveal">
                 <h4>底牌是:</h4>
                 <div class="card-row">
-                    <div class="card revealed">{{ store.room.bottomCards.person.content }}</div>
-                    <div class="card revealed">{{ store.room.bottomCards.place.content }}</div>
-                    <div class="card revealed">{{ store.room.bottomCards.event.content }}</div>
+                    <div class="card revealed">{{ store.room.bottomCards?.person?.content }}</div>
+                    <div class="card revealed">{{ store.room.bottomCards?.place?.content }}</div>
+                    <div class="card revealed">{{ store.room.bottomCards?.event?.content }}</div>
                 </div>
             </div>
             <button class="return-btn" @click="returnToLobby">返回大厅</button>
@@ -304,28 +302,12 @@ const returnToLobby = () => {
 .game-page-container {
   width: 100vw;
   height: 100vh;
-  background: url('/assets/game-bg.png') no-repeat center center;
-  background-size: contain;
-  background-color: #1a1a1a; /* Dark background for letterboxing */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.game-board-wrapper {
-  width: 100%;
-  height: 100%;
-  max-width: 177vh; /* 16:9 aspect ratio */
-  max-height: 100vw;
-  aspect-ratio: 16 / 9;
-  
+  background-color: #1a1a1a; /* Dark theme background */
   display: flex;
   flex-direction: column;
   color: #fff;
-  overflow: hidden;
   font-family: 'Helvetica Neue', Arial, sans-serif;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-  position: relative;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5); /* Universal text shadow for readability */
 }
 
 .top-center-timer {
@@ -341,13 +323,17 @@ const returnToLobby = () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 20px;
-  background-color: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(5px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 25px;
+  background-color: #252526;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
 }
-.logo-container img { height: 40px; }
-.room-info { font-size: 16px; color: #ccc; }
+.logo-container {
+ position: absolute;
+ left: 25px;
+}
+.logo-container img { max-height: 100px; }
+.room-info { font-size: 16px; color: #ccc; padding-left: 120px; }
 .back-card-display { text-align: right; }
 .back-card-display .cards { display: flex; margin-top: 5px; position: relative; width: 80px; height: 60px;}
 .back-card {
@@ -368,17 +354,19 @@ const returnToLobby = () => {
 
 /* Main Layout */
 .main-layout {
-  display: flex;
   flex-grow: 1;
-  overflow: hidden; /* Prevent scrollbars */
+  display: flex;
   position: relative;
+  overflow: hidden;
 }
 
 /* Left Sidebar for Players */
 .left-sidebar {
-  width: 200px;
-  padding: 20px 10px;
+  width: 240px;
+  padding: 20px 15px;
   overflow-y: auto;
+  flex-shrink: 0;
+  border-right: 1px solid #2a2a2a;
 }
 .players-list {
     display: flex;
@@ -388,7 +376,7 @@ const returnToLobby = () => {
 .player-slot {
   display: flex;
   align-items: center;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: #2f2f31;
   padding: 10px;
   border-radius: 10px;
   border: 2px solid transparent;
@@ -397,7 +385,7 @@ const returnToLobby = () => {
 }
 .player-slot.current-turn {
   border-color: #f9ca24;
-  background-color: rgba(249, 202, 36, 0.1);
+  background-color: #3f3a2b;
   box-shadow: 0 0 15px rgba(249, 202, 36, 0.4);
 }
 .player-slot img {
@@ -416,18 +404,22 @@ const returnToLobby = () => {
 /* Center Area for Log/Actions */
 .center-area {
   flex-grow: 1;
-  padding: 20px 10px;
+  padding: 20px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
   overflow-y: auto;
+  background: url('/assets/game-bg.png') no-repeat center center;
+  background-size: 60%; /* Logo as watermark */
+  background-blend-mode: overlay;
+  opacity: 0.8;
 }
 
 .center-content-wrapper {
   width: 100%;
   max-width: 700px;
-  /* display: flex; No longer needed */
-  /* flex-direction: column; No longer needed */
+  display: flex;
+  flex-direction: column;
   height: 100%;
 }
 
@@ -483,23 +475,14 @@ const returnToLobby = () => {
 .bottom-bar {
   display: flex;
   align-items: center;
-  justify-content: center; /* Change to center to handle both states */
-  padding: 15px 20px;
-  background-color: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(5px);
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  justify-content: space-between;
+  padding: 15px 25px;
+  background-color: #252526;
+  border-top: 1px solid #333;
   gap: 20px;
-  min-height: 184px; /* Give a consistent height for the bar */
+  min-height: 190px;
+  flex-shrink: 0;
 }
-
-.default-bottom-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
-    width: 100%;
-}
-
 .my-info {
   display: flex;
   flex-direction: column;
@@ -562,7 +545,7 @@ const returnToLobby = () => {
 }
 
 .my-hand-card {
-    background: linear-gradient(145deg, #4a4a4a, #2a2a2a);
+    background: #3a3a3c;
     border: 1px solid #555;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
     cursor: default; /* Not interactive */
@@ -619,25 +602,18 @@ const returnToLobby = () => {
 }
 
 .sentence-builder-area {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 2px solid #f9ca24;
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-    backdrop-filter: blur(4px);
-    margin-bottom: 20px; /* Space from log */
-    flex-shrink: 0; /* Prevent this from shrinking */
-    box-shadow: 0 0 20px rgba(249, 202, 36, 0.3);
-    /* Update styles for horizontal layout in bottom bar */
-    display: flex;
-    align-items: center;
-    width: 85%;
-    max-width: 900px;
-    justify-content: space-around;
+  background-color: rgba(40, 40, 40, 0.8);
+  border: 1px solid #f9ca24;
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+  backdrop-filter: blur(2px);
+  margin-bottom: 20px;
+  flex-shrink: 0; 
 }
 
 .sentence-builder-area h3 {
-    margin: 0;
+    margin: 0 0 15px 0;
     font-weight: 300;
     font-size: 1.1em;
     color: #eee;
@@ -647,7 +623,7 @@ const returnToLobby = () => {
     display: flex;
     justify-content: center;
     gap: 15px;
-    margin-bottom: 0;
+    margin-bottom: 20px;
 }
 
 .slot {
