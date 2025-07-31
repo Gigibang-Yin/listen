@@ -73,7 +73,7 @@
                     <button @click="sendChatMessage" class="chat-send-btn">发送</button>
                 </div>
                 <div v-if="showEmojiPicker" class="emoji-picker-container">
-                    <EmojiPicker :native="true" @select="onSelectEmoji" />
+                    <EmojiPicker @select="onSelectEmoji" />
                 </div>
             </div>
         </div>
@@ -159,7 +159,8 @@ import GuessModal from './GuessModal.vue';
 import GameLog from './GameLog.vue';
 import TurnTimer from './TurnTimer.vue';
 import { useToast } from '../composables/useToast';
-import EmojiPicker from 'emoji-picker-vue';
+import EmojiPicker from 'vue3-emoji-picker';
+import 'vue3-emoji-picker/css';
 
 const { showToast } = useToast();
 
