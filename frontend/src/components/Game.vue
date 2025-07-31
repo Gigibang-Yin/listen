@@ -82,10 +82,19 @@
       </div>
       <div class="my-cards-hand">
         <transition-group name="card-hand">
-          <div v-for="card in myPlayer?.hand" :key="card.id" class="card my-hand-card">
+          <div 
+            v-for="card in myPlayer?.hand" 
+            :key="card.id" 
+            class="card my-hand-card"
+            :class="{ 'is-playable': isCardPlayable(card.id) }"
+            @dblclick="handleRespond(card)"
+          >
             <span>{{ card.content }}</span>
           </div>
         </transition-group>
+        <div v-if="isMyTurnToRespond && playableCards.length === 0" class="no-cards-prompt">
+          你没有可响应的牌，将自动“过”。
+        </div>
       </div>
       <div class="actions">
         <button @click="isGuessModalOpen = true" v-if="isMyTurn && store.room.gameState === 'playing'">猜底牌</button>
@@ -172,6 +181,55 @@ const myPlayer = computed(
       notebook: {},
     }
 );
+
+const isMyTurnToRespond = computed(() => {
+    return store.room?.gameState === 'responding' && !isMyTurn.value;
+});
+
+const playableCards = computed(() => {
+    if (!isMyTurnToRespond.value || !myPlayer.value?.hand) {
+        return [];
+    }
+    const hand = myPlayer.value.hand;
+    const sentence = store.room.currentSentence;
+
+    const matchingCards = hand.filter(card => 
+        card.type !== 'water' &&
+        (card.content === sentence?.person?.content || 
+         card.content === sentence?.place?.content || 
+         card.content === sentence?.event?.content)
+    );
+
+    if (matchingCards.length > 0) {
+        return matchingCards;
+    }
+
+    return hand.filter(card => card.type === 'water');
+});
+
+const isCardPlayable = (cardId) => {
+    return playableCards.value.some(c => c.id === cardId);
+};
+
+const handleRespond = (card) => {
+    if (!isCardPlayable(card.id)) {
+        showToast("这张牌现在不能出哦！", 'error');
+        return;
+    }
+    socket.emit('respondToSentence', { roomId: store.room.id, card });
+};
+
+watch(isMyTurnToRespond, (isResponding) => {
+    if (isResponding && playableCards.value.length === 0) {
+        setTimeout(() => {
+            // Check again in case state changed during timeout
+            if (isMyTurnToRespond.value && playableCards.value.length === 0) {
+                socket.emit('respondToSentence', { roomId: store.room.id, card: null }); // Pass
+                showToast("你没有可响应的牌，已自动“过”。", 'info');
+            }
+        }, 2000);
+    }
+});
 
 const isSentenceComplete = computed(() => {
     return !!(sentenceBuilder.value.person && sentenceBuilder.value.place && sentenceBuilder.value.event);
@@ -400,6 +458,7 @@ const returnToLobby = () => {
   gap: 10px;
   justify-content: center;
   min-height: 130px; /* Ensure space for cards */
+  position: relative; /* Needed for absolute positioning of prompt */
 }
 .actions {
   display: flex;
@@ -433,6 +492,36 @@ const returnToLobby = () => {
 
 .my-hand-card:hover {
     transform: translateY(-8px);
+}
+
+.my-hand-card.is-playable {
+    border-color: #00bfff;
+    box-shadow: 0 0 15px #00bfff;
+    cursor: pointer;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 15px rgba(0, 191, 255, 0.7);
+    }
+    50% {
+        box-shadow: 0 0 25px rgba(0, 191, 255, 1);
+    }
+    100% {
+        box-shadow: 0 0 15px rgba(0, 191, 255, 0.7);
+    }
+}
+
+.no-cards-prompt {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0,0,0,0.7);
+    padding: 15px 25px;
+    border-radius: 8px;
+    font-size: 1.1em;
 }
 
 .sentence-builder-area {
