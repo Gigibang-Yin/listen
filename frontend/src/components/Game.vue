@@ -1,46 +1,69 @@
 <template>
   <div class="game-page-container">
-    <TurnTimer />
-    <div class="top-bar">
-      <div class="logo-container">
-        <img src="/assets/listen-logo.png" alt="Logo" />
-      </div>
-      <div class="room-info">房间: {{ store.room.id }}</div>
-      <div class="back-card-display">
-        <span>底牌 (3)</span>
-        <div class="cards">
-            <div class="back-card"></div>
-            <div class="back-card"></div>
-            <div class="back-card"></div>
+    <div class="game-board-wrapper">
+        <div class="top-center-timer">
+            <TurnTimer />
         </div>
-      </div>
-    </div>
-
-    <div class="main-layout">
-      <div class="left-sidebar">
-        <transition-group name="player-fade" tag="div" class="players-list">
-          <div
-            v-for="player in store.room.players"
-            :key="player.id"
-            class="player-slot"
-            :class="{ 
-                'current-turn': player.id === store.room.currentTurn, 
-                'is-out': !player.isAlive,
-                'is-disconnected': player.disconnected 
-            }"
-          >
-            <img :src="player.avatar || '/assets/default-avator.png'" alt="avatar" />
-            <div class="player-details">
-              <span class="player-name">{{ player.name }}</span>
-              <span class="card-count">{{ player.hand.length }} 张牌</span>
-            </div>
-            <div class="response-indicator" v-if="store.room.playersWhoResponded.includes(player.id)">✔</div>
+        <div class="top-bar">
+          <div class="logo-container">
+            <img src="/assets/listen-logo.png" alt="Logo" />
           </div>
-        </transition-group>
-      </div>
+          <div class="room-info">房间: {{ store.room.id }}</div>
+          <div class="back-card-display">
+            <span>底牌 (3)</span>
+            <div class="cards">
+                <div class="back-card"></div>
+                <div class="back-card"></div>
+                <div class="back-card"></div>
+            </div>
+          </div>
+        </div>
 
-      <div class="center-area">
-        <div class="center-content-wrapper">
+        <div class="main-layout">
+          <div class="left-sidebar">
+            <transition-group name="player-fade" tag="div" class="players-list">
+              <div
+                v-for="player in store.room.players"
+                :key="player.id"
+                class="player-slot"
+                :class="{ 
+                    'current-turn': player.id === store.room.currentTurn, 
+                    'is-out': !player.isAlive,
+                    'is-disconnected': player.disconnected 
+                }"
+              >
+                <img :src="player.avatar || '/assets/default-avator.png'" alt="avatar" />
+                <div class="player-details">
+                  <span class="player-name">{{ player.name }}</span>
+                  <span class="card-count">{{ player.hand.length }} 张牌</span>
+                </div>
+                <div class="response-indicator" v-if="store.room.playersWhoResponded.includes(player.id)">✔</div>
+              </div>
+            </transition-group>
+          </div>
+
+          <div class="center-area">
+            <div class="center-content-wrapper">
+                <GameLog :log="store.room.log" />
+            </div>
+          </div>
+
+          <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
+            <button class="notebook-toggle-btn" @click="isNotebookOpen = !isNotebookOpen">
+                <span>记<br>事<br>本<br>|<br>牌<br>库</span>
+            </button>
+            <div class="notebook-content">
+                <Notebook 
+                    :notebook-data="myPlayer?.notebook"
+                    :sentence-builder="sentenceBuilder"
+                    @update:notebookData="updateNotebook" 
+                    @make-sentence="handleMakeSentence"
+                />
+            </div>
+          </aside>
+        </div>
+
+        <div class="bottom-bar">
             <div class="sentence-builder-area" v-if="isMyTurn && store.room.gameState === 'playing'">
                 <h3>轮到你造句了！请从右侧牌库选择卡牌组成句子。</h3>
                 <div class="sentence-slots">
@@ -56,50 +79,34 @@
                     确认造句
                 </button>
             </div>
-            <GameLog :log="store.room.log" />
+            <div class="default-bottom-bar" v-else>
+                <div class="my-info">
+                    <div class="my-avatar"></div>
+                    <span>{{ myPlayer?.name }}</span>
+                </div>
+                <div class="my-cards-hand">
+                    <transition-group name="card-hand-wrapper" tag="div" class="card-hand-inner">
+                    <div class="card-wrapper" v-for="card in myPlayer?.hand" :key="card.id" >
+                        <div 
+                        class="card my-hand-card"
+                        :class="{ 'is-playable': isCardPlayable(card.id) }"
+                        @dblclick="handleRespond(card)"
+                        >
+                        <span>{{ card.content }}</span>
+                        </div>
+                        <div class="card-type-label">{{ getCardTypeName(card.type) }}</div>
+                    </div>
+                    </transition-group>
+                    <div v-if="isMyTurnToRespond && playableCards.length === 0" class="no-cards-prompt">
+                    你没有可响应的牌，将自动“过”。
+                    </div>
+                </div>
+                <div class="actions">
+                    <button class="action-btn guess-btn" @click="isGuessModalOpen = true" v-if="isMyTurn && store.room.gameState === 'playing'">猜底牌</button>
+                    <button class="action-btn start-btn" @click="startGame" v-if="isHost && store.room.gameState === 'waiting'">开始游戏</button>
+                </div>
+            </div>
         </div>
-      </div>
-
-      <aside class="notebook-sidebar" :class="{ 'is-open': isNotebookOpen }">
-        <button class="notebook-toggle-btn" @click="isNotebookOpen = !isNotebookOpen">
-            <span>记<br>事<br>本<br>|<br>牌<br>库</span>
-        </button>
-        <div class="notebook-content">
-            <Notebook 
-                :notebook-data="myPlayer?.notebook"
-                :sentence-builder="sentenceBuilder"
-                @update:notebookData="updateNotebook" 
-                @make-sentence="handleMakeSentence"
-            />
-        </div>
-      </aside>
-    </div>
-
-    <div class="bottom-bar">
-      <div class="my-info">
-        <div class="my-avatar"></div>
-        <span>{{ myPlayer?.name }}</span>
-      </div>
-      <div class="my-cards-hand">
-        <transition-group name="card-hand">
-          <div 
-            v-for="card in myPlayer?.hand" 
-            :key="card.id" 
-            class="card my-hand-card"
-            :class="{ 'is-playable': isCardPlayable(card.id) }"
-            @dblclick="handleRespond(card)"
-          >
-            <span>{{ card.content }}</span>
-          </div>
-        </transition-group>
-        <div v-if="isMyTurnToRespond && playableCards.length === 0" class="no-cards-prompt">
-          你没有可响应的牌，将自动“过”。
-        </div>
-      </div>
-      <div class="actions">
-        <button @click="isGuessModalOpen = true" v-if="isMyTurn && store.room.gameState === 'playing'">猜底牌</button>
-        <button @click="startGame" v-if="isHost && store.room.gameState === 'waiting'">开始游戏</button>
-      </div>
     </div>
     
     <GuessModal :is-open="isGuessModalOpen" @close="isGuessModalOpen = false" />
@@ -231,6 +238,14 @@ watch(isMyTurnToRespond, (isResponding) => {
     }
 });
 
+const getCardTypeName = (type) => {
+    if (type === 'water') return '水牌';
+    if (type === 'person') return 'Person';
+    if (type === 'place') return 'Place';
+    if (type === 'event') return 'Event';
+    return '';
+};
+
 const isSentenceComplete = computed(() => {
     return !!(sentenceBuilder.value.person && sentenceBuilder.value.place && sentenceBuilder.value.event);
 });
@@ -289,13 +304,36 @@ const returnToLobby = () => {
 .game-page-container {
   width: 100vw;
   height: 100vh;
-  background-image: url('/assets/game-bg.png');
-  background-size: cover;
-  background-position: center;
+  background: url('/assets/game-bg.png') no-repeat center center;
+  background-size: contain;
+  background-color: #1a1a1a; /* Dark background for letterboxing */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.game-board-wrapper {
+  width: 100%;
+  height: 100%;
+  max-width: 177vh; /* 16:9 aspect ratio */
+  max-height: 100vw;
+  aspect-ratio: 16 / 9;
+  
   display: flex;
   flex-direction: column;
   color: #fff;
   overflow: hidden;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  position: relative;
+}
+
+.top-center-timer {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
 }
 
 /* Top Bar */
@@ -306,21 +344,27 @@ const returnToLobby = () => {
   padding: 10px 20px;
   background-color: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(5px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 .logo-container img { height: 40px; }
-.room-info { font-size: 18px; }
+.room-info { font-size: 16px; color: #ccc; }
 .back-card-display { text-align: right; }
-.back-card-display .cards { display: flex; margin-top: 5px; }
+.back-card-display .cards { display: flex; margin-top: 5px; position: relative; width: 80px; height: 60px;}
 .back-card {
-    width: 40px;
-    height: 60px;
+    position: absolute;
+    width: 45px;
+    height: 65px;
     background-image: url('/assets/back-card.png');
-    background-size: contain;
+    background-size: cover;
     background-repeat: no-repeat;
-    margin-left: -15px;
     border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 4px;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    transition: transform 0.3s ease;
 }
+.back-card:nth-child(1) { transform: translateX(25px) rotate(-10deg); }
+.back-card:nth-child(2) { z-index: 1; transform: rotate(2deg) scale(1.05); }
+.back-card:nth-child(3) { transform: translateX(-25px) rotate(10deg); }
 
 /* Main Layout */
 .main-layout {
@@ -344,16 +388,17 @@ const returnToLobby = () => {
 .player-slot {
   display: flex;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.4);
+  background-color: rgba(255, 255, 255, 0.05);
   padding: 10px;
-  border-radius: 8px;
+  border-radius: 10px;
   border: 2px solid transparent;
   transition: all 0.3s ease;
   position: relative;
 }
 .player-slot.current-turn {
-  border-color: #ffeb3b;
-  box-shadow: 0 0 10px #ffeb3b;
+  border-color: #f9ca24;
+  background-color: rgba(249, 202, 36, 0.1);
+  box-shadow: 0 0 15px rgba(249, 202, 36, 0.4);
 }
 .player-slot img {
   width: 40px;
@@ -365,13 +410,13 @@ const returnToLobby = () => {
   display: flex;
   flex-direction: column;
 }
-.player-name { font-weight: bold; }
-.card-count { font-size: 12px; color: #ccc; }
+.player-name { font-weight: bold; font-size: 15px; }
+.card-count { font-size: 12px; color: #aaa; }
 
 /* Center Area for Log/Actions */
 .center-area {
   flex-grow: 1;
-  padding: 20px;
+  padding: 20px 10px;
   display: flex;
   justify-content: center;
   align-items: flex-start;
@@ -381,6 +426,9 @@ const returnToLobby = () => {
 .center-content-wrapper {
   width: 100%;
   max-width: 700px;
+  /* display: flex; No longer needed */
+  /* flex-direction: column; No longer needed */
+  height: 100%;
 }
 
 .notebook-sidebar {
@@ -435,15 +483,28 @@ const returnToLobby = () => {
 .bottom-bar {
   display: flex;
   align-items: center;
-  padding: 10px;
+  justify-content: center; /* Change to center to handle both states */
+  padding: 15px 20px;
   background-color: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(5px);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 20px;
+  min-height: 184px; /* Give a consistent height for the bar */
 }
+
+.default-bottom-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    width: 100%;
+}
+
 .my-info {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-right: 20px;
+  flex-shrink: 0;
 }
 .my-avatar {
   width: 50px;
@@ -457,13 +518,29 @@ const returnToLobby = () => {
   display: flex;
   gap: 10px;
   justify-content: center;
-  min-height: 130px; /* Ensure space for cards */
+  min-height: 150px; /* Ensure space for cards */
   position: relative; /* Needed for absolute positioning of prompt */
 }
+
+.card-hand-inner {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.card-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
 .actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  align-items: center;
 }
 
 .card {
@@ -471,6 +548,7 @@ const returnToLobby = () => {
     height: 140px;
     padding: 10px;
     display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
@@ -480,7 +558,7 @@ const returnToLobby = () => {
     color: #fff;
     word-break: break-all;
     position: relative;
-    transition: transform 0.2s ease-out;
+    transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
 }
 
 .my-hand-card {
@@ -490,26 +568,42 @@ const returnToLobby = () => {
     cursor: default; /* Not interactive */
 }
 
+.my-hand-card span {
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.card-type-label {
+    font-size: 11px;
+    color: #bbb;
+    font-weight: 500;
+    background-color: rgba(0, 0, 0, 0.4);
+    padding: 3px 10px;
+    border-radius: 10px;
+    line-height: 1;
+}
+
 .my-hand-card:hover {
-    transform: translateY(-8px);
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.4);
 }
 
 .my-hand-card.is-playable {
     border-color: #00bfff;
-    box-shadow: 0 0 15px #00bfff;
+    box-shadow: 0 0 15px #00bfff, 0 8px 15px rgba(0, 0, 0, 0.4);
     cursor: pointer;
     animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
     0% {
-        box-shadow: 0 0 15px rgba(0, 191, 255, 0.7);
+        box-shadow: 0 0 15px rgba(0, 191, 255, 0.7), 0 8px 15px rgba(0, 0, 0, 0.4);
     }
     50% {
-        box-shadow: 0 0 25px rgba(0, 191, 255, 1);
+        box-shadow: 0 0 25px rgba(0, 191, 255, 1), 0 8px 15px rgba(0, 0, 0, 0.4);
     }
     100% {
-        box-shadow: 0 0 15px rgba(0, 191, 255, 0.7);
+        box-shadow: 0 0 15px rgba(0, 191, 255, 0.7), 0 8px 15px rgba(0, 0, 0, 0.4);
     }
 }
 
@@ -525,17 +619,25 @@ const returnToLobby = () => {
 }
 
 .sentence-builder-area {
-    background-color: rgba(0, 0, 0, 0.4);
-    border: 1px solid #ffeb3b;
+    background-color: rgba(255, 255, 255, 0.05);
+    border: 2px solid #f9ca24;
     padding: 20px;
     border-radius: 12px;
     text-align: center;
     backdrop-filter: blur(4px);
     margin-bottom: 20px; /* Space from log */
+    flex-shrink: 0; /* Prevent this from shrinking */
+    box-shadow: 0 0 20px rgba(249, 202, 36, 0.3);
+    /* Update styles for horizontal layout in bottom bar */
+    display: flex;
+    align-items: center;
+    width: 85%;
+    max-width: 900px;
+    justify-content: space-around;
 }
 
 .sentence-builder-area h3 {
-    margin: 0 0 15px 0;
+    margin: 0;
     font-weight: 300;
     font-size: 1.1em;
     color: #eee;
@@ -545,7 +647,7 @@ const returnToLobby = () => {
     display: flex;
     justify-content: center;
     gap: 15px;
-    margin-bottom: 20px;
+    margin-bottom: 0;
 }
 
 .slot {
@@ -588,6 +690,32 @@ const returnToLobby = () => {
 }
 
 .confirm-sentence-btn:not(:disabled):hover {
+    background-color: #66bb6a;
+}
+
+.action-btn {
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.guess-btn {
+    background-color: #f1f2f6;
+    color: #2f3542;
+}
+.guess-btn:hover {
+    background-color: #dfe4ea;
+}
+
+.start-btn {
+    background-color: #4CAF50;
+    color: white;
+}
+.start-btn:hover {
     background-color: #66bb6a;
 }
 
