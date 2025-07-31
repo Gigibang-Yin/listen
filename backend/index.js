@@ -131,6 +131,7 @@ io.on("connection", (socket) => {
       const result = handleChatMessage(roomId, socket.id, message);
       if (result.room) {
         io.to(roomId).emit("roomUpdate", result.room);
+        io.to(roomId).emit("playerChatted", { playerId: socket.id });
       } else if (result.error) {
         socket.emit("error", { message: result.error });
       }

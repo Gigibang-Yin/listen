@@ -29,7 +29,8 @@
             :class="{ 
                 'current-turn': player.id === store.room.currentTurn, 
                 'is-out': !player.isAlive,
-                'is-disconnected': player.disconnected 
+                'is-disconnected': player.disconnected,
+                'is-chatting': player.id === lastChattingPlayerId,
             }"
           >
             <img :src="player.avatar || '/assets/default-avator.png'" alt="avatar" />
@@ -166,6 +167,18 @@ const { showToast } = useToast();
 
 const chatMessage = ref('');
 const showEmojiPicker = ref(false);
+const lastChattingPlayerId = ref(null);
+let chatAnimationTimeout = null;
+
+socket.on('playerChatted', ({ playerId }) => {
+    lastChattingPlayerId.value = playerId;
+    if (chatAnimationTimeout) {
+        clearTimeout(chatAnimationTimeout);
+    }
+    chatAnimationTimeout = setTimeout(() => {
+        lastChattingPlayerId.value = null;
+    }, 500); // Animation duration
+});
 
 const sendChatMessage = () => {
     if (chatMessage.value.trim() === '') return;
@@ -424,6 +437,23 @@ const returnToLobby = () => {
   background-color: #3f3a2b;
   box-shadow: 0 0 15px rgba(249, 202, 36, 0.4);
 }
+
+.player-slot.is-chatting img {
+    animation: pop 0.5s ease-out;
+}
+
+@keyframes pop {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.2);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
 .player-slot img {
   width: 40px;
   height: 40px;
