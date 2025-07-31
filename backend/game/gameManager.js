@@ -414,7 +414,33 @@ const viewCard = (roomId, viewerId, targetPlayerId) => {
 
 const moveToNextTurn = (roomId) => {
   const room = getRoom(roomId);
-  if (!room) throw new Error("Room not found.");
+  if (!room) return;
+
+  // Clear the timer for the previous turn
+  clearTimer(roomId);
+
+  // --- FIX: Return responded cards to their owners before changing turn ---
+  if (room.responses && room.responses.length > 0) {
+    room.responses.forEach((response) => {
+      const owner = room.players.find((p) => p.id === response.playerId);
+      if (owner) {
+        owner.hand.push(response.card);
+        // Optional: Add a log entry for transparency, though it might be noisy.
+        // room.log.push({ type: 'return', message: `一张牌被归还给了 ${owner.name}。`});
+      }
+    });
+    room.log.push({ type: "info", message: "所有响应的牌已归还。" });
+  }
+  // -------------------------------------------------------------------
+
+  // Determine the next player
+  const alivePlayers = room.players.filter((p) => p.isAlive);
+  if (alivePlayers.length <= 1) {
+    room.gameState = "finished";
+    room.winner = null; // Explicitly set no winner
+    room.log.push("所有玩家都已出局，游戏结束。");
+    return room;
+  }
 
   const currentPlayerIndex = room.players.findIndex(
     (p) => p.id === room.currentTurn
