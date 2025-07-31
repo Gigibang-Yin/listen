@@ -120,6 +120,11 @@ onUpdated(() => {
   color: #e0e0e0;
 }
 
+.chat-message {
+  font-size: 1.2em;
+  padding: 2px;
+}
+
 .log-entry-enter-active, .log-entry-leave-active {
   transition: all 0.4s ease;
 }
