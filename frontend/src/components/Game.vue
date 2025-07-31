@@ -44,7 +44,7 @@
 
       <div class="center-area">
         <div class="center-content-wrapper">
-            <div class="sentence-builder-area" v-if="isMyTurn && store.room.gameState === 'playing'">
+            <div class="sentence-builder-area" v-show="isMyTurn && store.room.gameState === 'playing'">
                 <h3>轮到你造句了！请从右侧牌库选择卡牌组成句子。</h3>
                 <div class="sentence-slots">
                     <div class="slot" :class="{ filled: !!sentenceBuilder.person }">{{ sentenceBuilder.person?.content || '人物' }}</div>
@@ -60,6 +60,22 @@
                 </button>
             </div>
             <GameLog :log="store.room?.log" />
+            <div class="chat-area">
+                <input 
+                    type="text" 
+                    v-model="chatMessage" 
+                    @keyup.enter="sendChatMessage" 
+                    placeholder="在这里聊天..." 
+                    class="chat-input"
+                />
+                <div class="chat-actions">
+                    <button class="emoji-btn" @click="showEmojiPicker = !showEmojiPicker">😀</button>
+                    <button @click="sendChatMessage" class="chat-send-btn">发送</button>
+                </div>
+                <div v-if="showEmojiPicker" class="emoji-picker-container">
+                    <EmojiPicker :native="true" @select="onSelectEmoji" />
+                </div>
+            </div>
         </div>
       </div>
 
@@ -143,7 +159,26 @@ import GuessModal from './GuessModal.vue';
 import GameLog from './GameLog.vue';
 import TurnTimer from './TurnTimer.vue';
 import { useToast } from '../composables/useToast';
+import EmojiPicker from 'emoji-picker-vue';
+
 const { showToast } = useToast();
+
+const chatMessage = ref('');
+const showEmojiPicker = ref(false);
+
+const sendChatMessage = () => {
+    if (chatMessage.value.trim() === '') return;
+    socket.emit('sendChatMessage', { 
+        roomId: store.room.id, 
+        message: chatMessage.value 
+    });
+    chatMessage.value = '';
+    showEmojiPicker.value = false; // Hide picker after sending
+};
+
+const onSelectEmoji = (emoji) => {
+    chatMessage.value += emoji.i;
+};
 
 const showTurnIndicator = ref(false);
 
@@ -406,8 +441,9 @@ const returnToLobby = () => {
   flex-grow: 1;
   padding: 20px;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column; /* Ensure items stack vertically */
+  justify-content: flex-start; /* Align items to the top */
+  align-items: center;
   overflow-y: auto;
   background: url('/assets/game-bg.png') no-repeat center center;
   background-size: 60%; /* Logo as watermark */
@@ -421,6 +457,78 @@ const returnToLobby = () => {
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+.chat-area {
+  margin-top: auto; /* Pushes chat to the bottom of the flex container */
+  width: 100%;
+  padding-top: 15px;
+  position: relative; /* For emoji picker positioning */
+  display: flex;
+  gap: 10px;
+}
+
+.chat-input {
+  flex-grow: 1;
+  background-color: #2c2c2e;
+  border: 1px solid #444;
+  color: #fff;
+  border-radius: 20px;
+  padding: 8px 15px;
+  font-size: 14px;
+}
+.chat-input:focus {
+  outline: none;
+  border-color: #f9ca24;
+}
+
+.chat-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.emoji-btn, .chat-send-btn {
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    transition: background-color 0.2s;
+}
+
+.emoji-btn {
+    background-color: #48484a;
+    color: white;
+}
+.emoji-btn:hover {
+    background-color: #5a5a5c;
+}
+
+.chat-send-btn {
+    background-color: #f9ca24;
+    color: #1c1c1e;
+}
+
+.chat-send-btn:hover {
+    background-color: #ffda57;
+}
+
+.emoji-picker-container {
+    position: absolute;
+    bottom: 55px; /* Position above the input area */
+    right: 0;
+    z-index: 1000;
+}
+/* Center Area for Log/Actions */
+:deep(.emoji-picker) {
+    --ep-bg-color: #2c2c2e;
+    --ep-text-color: #fff;
+    --ep-border-color: #444;
+    --ep-search-input-bg-color: #1c1c1e;
 }
 
 .notebook-sidebar {

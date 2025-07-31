@@ -14,6 +14,7 @@ const {
   guessBottomCard,
   disconnectPlayer,
   removeRoom,
+  handleChatMessage,
 } = require("./game/gameManager");
 
 const app = express();
@@ -122,6 +123,20 @@ io.on("connection", (socket) => {
       }
     } catch (error) {
       console.error("Move to next turn error:", error.message);
+    }
+  });
+
+  socket.on("sendChatMessage", ({ roomId, message }) => {
+    try {
+      const result = handleChatMessage(roomId, socket.id, message);
+      if (result.room) {
+        io.to(roomId).emit("roomUpdate", result.room);
+      } else if (result.error) {
+        socket.emit("error", { message: result.error });
+      }
+    } catch (error) {
+      console.error(`Chat message error in room ${roomId}: ${error.message}`);
+      socket.emit("error", { message: "Failed to send message." });
     }
   });
 

@@ -42,7 +42,7 @@ const disconnectPlayer = (playerId) => {
   const player = room.players.find((p) => p.id === playerId);
   if (player) {
     player.disconnected = true;
-    room.log.push(`${player.name} 断线了。`);
+    room.log.push({ type: "system", message: `${player.name} 断线了。` });
 
     // If it was the disconnected player's turn, move to the next player
     if (room.currentTurn === playerId) {
@@ -65,7 +65,7 @@ const joinRoom = (roomId, playerId, playerName) => {
   if (reconnectingPlayer) {
     reconnectingPlayer.disconnected = false;
     reconnectingPlayer.id = playerId; // Update with new socket ID
-    room.log.push(`${playerName} 重新连接了！`);
+    room.log.push({ type: "system", message: `${playerName} 重新连接了！` });
     return room;
   }
 
@@ -88,7 +88,7 @@ const joinRoom = (roomId, playerId, playerName) => {
     disconnected: false,
   };
   room.players.push(player);
-  room.log.push(`${playerName} 加入了房间。`);
+  room.log.push({ type: "system", message: `${playerName} 加入了房间。` });
   return room;
 };
 
@@ -98,7 +98,7 @@ const leaveRoom = (roomId, playerId) => {
 
   const player = room.players.find((p) => p.id === playerId);
   if (player) {
-    room.log.push(`${player.name} 离开了房间。`);
+    room.log.push({ type: "system", message: `${player.name} 离开了房间。` });
   }
 
   room.players = room.players.filter((p) => p.id !== playerId);
@@ -182,16 +182,22 @@ const startGame = (roomId) => {
   room.gameState = "playing";
   room.currentTurn = room.players[Math.floor(Math.random() * numPlayers)].id;
   room.turnEndsAt = Date.now() + GAME_CONFIG.TURN_TIMER; // FIX: Add timestamp for the first turn
-  room.log.push("游戏开始！");
-  room.log.push(
-    `轮到 ${room.players.find((p) => p.id === room.currentTurn).name}。`
-  );
+  room.log.push({ type: "system", message: "游戏开始！" });
+  room.log.push({
+    type: "system",
+    message: `轮到 ${
+      room.players.find((p) => p.id === room.currentTurn).name
+    }。`,
+  });
 
   clearTimer(roomId);
   timers[roomId] = setTimeout(() => {
     const timedOutPlayer = room.players.find((p) => p.id === room.currentTurn);
     if (timedOutPlayer) {
-      room.log.push(`${timedOutPlayer.name} 操作超时，自动跳过。`);
+      room.log.push({
+        type: "system",
+        message: `${timedOutPlayer.name} 操作超时，自动跳过。`,
+      });
     }
     const updatedRoom = moveToNextTurn(roomId);
     if (updatedRoom && global.io) {
@@ -216,7 +222,10 @@ const checkIfAllResponded = (roomId) => {
   );
   if (room.playersWhoResponded.length >= respondingPlayers.length) {
     room.gameState = "viewing";
-    room.log.push("所有玩家已响应，请造句者选择一张牌查看。");
+    room.log.push({
+      type: "system",
+      message: "所有玩家已响应，请造句者选择一张牌查看。",
+    });
     room.respondingEndsAt = null;
     room.viewingEndsAt = Date.now() + GAME_CONFIG.VIEW_CARD_TIMER;
 
@@ -234,7 +243,10 @@ const checkIfAllResponded = (roomId) => {
           (p) => p.id === currentRoom.currentTurn
         );
         if (player) {
-          currentRoom.log.push(`${player.name} 超时未查看，自动进入下一回合。`);
+          currentRoom.log.push({
+            type: "system",
+            message: `${player.name} 超时未查看，自动进入下一回合。`,
+          });
         }
         const updatedRoom = moveToNextTurn(roomId);
         if (global.io) {
@@ -265,9 +277,11 @@ const makeSentence = (roomId, playerId, sentence) => {
   room.responses = []; // Clear previous responses
   room.playersWhoResponded = []; // Clear previous responders
 
-  room.log.push(
-    `${player.name} 造句: ${sentence.person.content}, ${sentence.place.content}, ${sentence.event.content}`
-  );
+  room.log.push({
+    type: "action",
+    author: player.name,
+    message: `造句: ${sentence.person.content}, ${sentence.place.content}, ${sentence.event.content}`,
+  });
 
   clearTimer(roomId);
   timers[roomId] = setTimeout(() => {
@@ -282,7 +296,10 @@ const makeSentence = (roomId, playerId, sentence) => {
     );
 
     if (playersToAutoPass.length > 0) {
-      room.log.push(`响应时间到, 未出牌的玩家自动跳过。`);
+      room.log.push({
+        type: "system",
+        message: "响应时间到, 未出牌的玩家自动跳过。",
+      });
       playersToAutoPass.forEach((p) => {
         room.playersWhoResponded.push(p.id);
       });
@@ -368,10 +385,14 @@ function respondToSentence(roomId, playerId, card) {
   if (card) {
     room.responses.push({ playerId, card });
     player.hand = player.hand.filter((c) => c.id !== card.id);
-    room.log.push({ type: "respond", message: `${player.name} 已出牌。` });
+    room.log.push({ type: "action", author: player.name, message: `已出牌。` });
   } else {
     // Player passes, no card added to responses
-    room.log.push({ type: "pass", message: `${player.name} 选择“过”。` });
+    room.log.push({
+      type: "action",
+      author: player.name,
+      message: "选择“过”。",
+    });
   }
 
   room.playersWhoResponded.push(playerId);
@@ -405,7 +426,11 @@ const viewCard = (roomId, viewerId, targetPlayerId) => {
 
   if (viewer && targetPlayer) {
     // FIX: Check if players exist before logging
-    room.log.push(`${viewer.name} 查看了 ${targetPlayer.name} 的牌。`);
+    room.log.push({
+      type: "action",
+      author: viewer.name,
+      message: `查看了 ${targetPlayer.name} 的牌。`,
+    });
   }
 
   // Return the card to be viewed privately
@@ -438,7 +463,7 @@ const moveToNextTurn = (roomId) => {
   if (alivePlayers.length <= 1) {
     room.gameState = "finished";
     room.winner = null; // Explicitly set no winner
-    room.log.push("所有玩家都已出局，游戏结束。");
+    room.log.push({ type: "system", message: "所有玩家都已出局，游戏结束。" });
     return room;
   }
 
@@ -453,7 +478,10 @@ const moveToNextTurn = (roomId) => {
     if (nextPlayerIndex === currentPlayerIndex) {
       room.gameState = "finished";
       room.winner = null; // Explicitly set no winner
-      room.log.push("所有玩家都已出局，游戏结束。");
+      room.log.push({
+        type: "system",
+        message: "所有玩家都已出局，游戏结束。",
+      });
       return room;
     }
   }
@@ -465,13 +493,19 @@ const moveToNextTurn = (roomId) => {
   room.currentSentence = null;
   room.responses = [];
   room.playersWhoResponded = [];
-  room.log.push(`轮到 ${room.players[nextPlayerIndex].name}。`);
+  room.log.push({
+    type: "system",
+    message: `轮到 ${room.players[nextPlayerIndex].name}。`,
+  });
 
   clearTimer(roomId);
   timers[roomId] = setTimeout(() => {
     const timedOutPlayer = room.players.find((p) => p.id === room.currentTurn);
     if (timedOutPlayer) {
-      room.log.push(`${timedOutPlayer.name} 操作超时，自动跳过。`);
+      room.log.push({
+        type: "system",
+        message: `${timedOutPlayer.name} 操作超时，自动跳过。`,
+      });
     }
     const updatedRoom = moveToNextTurn(roomId); // The key change: just move to the next turn
     if (updatedRoom && global.io) {
@@ -515,12 +549,19 @@ const guessBottomCard = (roomId, playerId, guessedCards) => {
     // Correct guess!
     room.gameState = "finished";
     room.winner = player;
-    room.log.push(`${player.name} 猜对了全部三张底牌！游戏结束！`);
+    room.log.push({
+      type: "system",
+      message: `${player.name} 猜对了全部三张底牌！游戏结束！`,
+    });
     return { correct: true, room };
   } else {
     // Incorrect guess
     player.isAlive = false;
-    room.log.push(`${player.name} 猜错了，出局了！`);
+    room.log.push({
+      type: "action",
+      author: player.name,
+      message: `猜错了，出局了！`,
+    });
     const nextTurnRoom = moveToNextTurn(roomId);
     return { correct: false, room: nextTurnRoom, guessedCards };
   }
@@ -541,6 +582,24 @@ const removeRoom = (roomId) => {
   }
 };
 
+function handleChatMessage(roomId, playerId, message) {
+  const room = getRoom(roomId);
+  if (!room) {
+    return { error: "Room not found" };
+  }
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player) {
+    return { error: "Player not found" };
+  }
+
+  if (!message || message.trim() === "") {
+    return { error: "Message cannot be empty." };
+  }
+
+  room.log.push({ type: "chat", author: player.name, message: message.trim() });
+  return { room };
+}
+
 module.exports = {
   createRoom,
   joinRoom,
@@ -555,4 +614,5 @@ module.exports = {
   removeRoom, // Export the new function
   rooms,
   disconnectPlayer,
+  handleChatMessage,
 };
