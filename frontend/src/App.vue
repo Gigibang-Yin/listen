@@ -98,4 +98,12 @@ body {
   margin: 0;
 }
 
+.app-container {
+  background-image: url('/assets/bg.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  min-height: 100vh;
+}
+
 </style>

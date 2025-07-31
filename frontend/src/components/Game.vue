@@ -477,7 +477,7 @@ const returnToLobby = () => {
   align-items: center;
   overflow-y: auto;
   background: url('/assets/game-bg.png') no-repeat center center;
-  background-size: 60%; /* Logo as watermark */
+  background-size: 50%; /* Logo as watermark */
   background-blend-mode: overlay;
   opacity: 0.8;
 }
