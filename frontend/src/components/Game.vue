@@ -287,9 +287,9 @@ watch(isMyTurnToRespond, (isResponding) => {
 
 const getCardTypeName = (type) => {
     if (type === 'water') return '水牌';
-    if (type === 'person') return 'Person';
-    if (type === 'place') return 'Place';
-    if (type === 'event') return 'Event';
+    if (type === 'person') return '人物';
+    if (type === 'place') return '地点';
+    if (type === 'event') return '事件';
     return '';
 };
 
