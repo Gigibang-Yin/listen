@@ -11,10 +11,14 @@
                             v-for="card in type.cards" 
                             :key="card.id" 
                             class="guess-card"
-                            :class="{ selected: selectedCards[type.key]?.id === card.id }"
+                            :class="{ 
+                                selected: selectedCards[type.key]?.id === card.id,
+                                'is-eliminated': getMark(card.id) === 'not_have'
+                            }"
                             @click="selectCard(type.key, card)"
                         >
                             {{ card.content }}
+                            <div v-if="getMark(card.id)" :class="['mark', getMark(card.id)]"></div>
                         </div>
                     </div>
                 </div>
@@ -34,8 +38,12 @@ import { store } from '../store';
 import { CARDS } from '../game/cards.js';
 import { useToast } from '../composables/useToast';
 
-defineProps({
+const props = defineProps({
     isOpen: Boolean,
+    notebookData: {
+        type: Object,
+        default: () => ({})
+    }
 });
 const emit = defineEmits(['close']);
 
@@ -50,7 +58,14 @@ const isGuessComplete = computed(() => {
     return selectedCards.value.person && selectedCards.value.place && selectedCards.value.event;
 });
 
+const getMark = (cardId) => {
+    return props.notebookData ? props.notebookData[cardId] : null;
+};
+
 const selectCard = (type, card) => {
+    if (getMark(card.id) === 'not_have') {
+        return; // Do not select eliminated cards
+    }
     selectedCards.value[type] = card;
 };
 
@@ -130,11 +145,26 @@ const submitGuess = () => {
     text-align: center;
     border: 2px solid #555;
     cursor: pointer;
+    position: relative;
 }
 .guess-card.selected {
     border-color: #4CAF50;
     box-shadow: 0 0 10px #4CAF50;
 }
+.guess-card.is-eliminated {
+    cursor: not-allowed;
+}
+.mark {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+}
+.mark.have { background-color: #28a745; } /* green */
+.mark.not_have { background-color: #dc3545; } /* red */
+.mark.maybe { background-color: #ffc107; } /* yellow */
 .actions {
     margin-top: 20px;
     display: flex;

@@ -600,6 +600,24 @@ function handleChatMessage(roomId, playerId, message) {
   return { room };
 }
 
+function updateNotebook(roomId, playerId, notebookData) {
+  const room = getRoom(roomId);
+  if (!room) {
+    throw new Error("Room not found");
+  }
+
+  const player = room.players.find((p) => p.id === playerId);
+  if (!player) {
+    throw new Error("Player not found");
+  }
+
+  // Directly update the player's notebook object
+  player.notebook = notebookData;
+
+  console.log(`Notebook updated for player ${player.name} in room ${roomId}`);
+  return room;
+}
+
 module.exports = {
   createRoom,
   joinRoom,
@@ -615,4 +633,5 @@ module.exports = {
   rooms,
   disconnectPlayer,
   handleChatMessage,
+  updateNotebook,
 };

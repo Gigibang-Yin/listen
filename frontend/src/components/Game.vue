@@ -124,7 +124,7 @@
       </div>
     </div>
     
-    <GuessModal :is-open="isGuessModalOpen" @close="isGuessModalOpen = false" />
+    <GuessModal :is-open="isGuessModalOpen" @close="isGuessModalOpen = false" :notebook-data="myPlayer?.notebook" />
     <div class="game-over-overlay" v-if="store.isGameOver">
         <div class="game-over-box">
             <h2>游戏结束</h2>
@@ -216,9 +216,13 @@ watch(() => store.room?.currentTurn, (newTurn, oldTurn) => {
     }
 }, { immediate: true }); // Use immediate to catch the initial turn
 
-const isNotebookOpen = ref(true);
+const isNotebookOpen = ref(sessionStorage.getItem('isNotebookOpen') === 'true' || false);
 const sentenceBuilder = ref({ person: null, place: null, event: null });
 const isGuessModalOpen = ref(false);
+
+watch(isNotebookOpen, (newValue) => {
+    sessionStorage.setItem('isNotebookOpen', newValue);
+});
 
 const isHost = computed(
   () =>
@@ -306,11 +310,13 @@ const startGame = () => {
 };
 
 const updateNotebook = (newNotebookData) => {
-  // Here you would emit an event to the server to save the notebook state
-  // For now, we just update it locally
   const player = store.room?.players?.find((p) => p.id === socket.id);
   if (player) {
     player.notebook = newNotebookData;
+    socket.emit('updateNotebook', {
+        roomId: store.room.id,
+        notebookData: newNotebookData
+    });
   }
 };
 

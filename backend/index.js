@@ -141,34 +141,58 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("updateNotebook", ({ roomId, notebookData }) => {
+    try {
+      const room = require("./game/gameManager").updateNotebook(
+        roomId,
+        socket.id,
+        notebookData
+      );
+      // We don't need to broadcast the whole room state back,
+      // as the change only affects the one player who made it,
+      // and their local state is already updated.
+      // If we wanted other players to see notebook changes (e.g. for spectating),
+      // we would emit a roomUpdate here.
+    } catch (error) {
+      console.error(
+        `Notebook update error in room ${roomId}: ${error.message}`
+      );
+      socket.emit("error", { message: "Failed to update notebook." });
+    }
+  });
+
   socket.on("guessBottomCard", ({ roomId, guessedCards }, callback) => {
     try {
-      const result = guessBottomCard(roomId, socket.id, guessedCards);
-      if (result.correct) {
+      const { correct, isGameOver, winner, room } = guessBottomCard(
+        roomId,
+        socket.id,
+        guessedCards
+      );
+      if (correct) {
         // Announce winner to everyone
         console.log(
-          `Game over in room ${roomId}. Winner: ${result.room.winner.name}. Emitting gameOver.`
+          `Game over in room ${roomId}. Winner: ${winner.name}. Emitting gameOver.`
         );
-        io.to(roomId).emit("gameOver", { room: result.room });
+        io.to(roomId).emit("gameOver", { room: room });
 
         // Schedule room cleanup right after announcing the winner
         setTimeout(() => {
-          removeRoom(result.room.id);
+          removeRoom(roomId);
         }, 10000); // 10 seconds delay
       } else {
         // Announce the player is out and move to next turn
-        io.to(roomId).emit("roomUpdate", result.room);
+        io.to(roomId).emit("roomUpdate", room);
 
         // THE FIX: Also check if the game ended right after this player got out
-        if (result.room.gameState === "finished") {
-          io.to(roomId).emit("gameOver", { room: result.room });
+        if (room.gameState === "finished") {
+          io.to(roomId).emit("gameOver", { room: room });
           setTimeout(() => {
-            removeRoom(result.room.id);
+            removeRoom(roomId);
           }, 10000);
         }
 
         // Tell the player what they guessed wrong privately
-        callback({ success: false, guessedCards: result.guessedCards });
+        callback({ success: false, guessedCards: guessedCards });
       }
     } catch (error) {
       console.error("Guess bottom card error:", error.message);
